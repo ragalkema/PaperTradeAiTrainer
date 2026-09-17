@@ -4,7 +4,7 @@ set -eu
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -e "./backend[dev]"
+python -m pip install -e ".[dev]"
 npm ci --prefix frontend
 
 echo "Setup complete. Copy .env.example to .env before running services."

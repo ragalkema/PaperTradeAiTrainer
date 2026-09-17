@@ -52,21 +52,45 @@ temp/
 *.sql.gz
 *.dump
 
-# Generated data (keep documentation)
-data/raw/*
-!data/raw/.gitkeep
-data/processed/*
-!data/processed/.gitkeep
+# Generated data (retain directory markers)
+data/raw/**
+!data/raw/**/
+!data/raw/**/.gitkeep
+data/normalized/**
+!data/normalized/**/
+!data/normalized/**/.gitkeep
+data/features/**
+!data/features/
+!data/features/.gitkeep
+data/experiments/**
+!data/experiments/
+!data/experiments/.gitkeep
 
 # Model and experiment artifacts (keep documentation)
-models/*
-!models/README.md
-checkpoints/
+models/checkpoints/**
+models/trained/**
+models/exported/**
+!models/checkpoints/
+!models/checkpoints/.gitkeep
+!models/trained/
+!models/trained/.gitkeep
+!models/exported/
+!models/exported/.gitkeep
+experiments/results/**
+experiments/reports/**
+!experiments/results/
+!experiments/results/.gitkeep
+!experiments/reports/
+!experiments/reports/.gitkeep
+/checkpoints/
 *.ckpt
 *.pt
 *.pth
 *.onnx
 *.h5
+*.pkl
+*.joblib
+*.keras
 wandb/
 runs/
 lightning_logs/
