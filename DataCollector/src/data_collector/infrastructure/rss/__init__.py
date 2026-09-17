@@ -1,0 +1,1 @@
+"""Future RSS adapters."""

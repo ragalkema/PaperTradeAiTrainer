@@ -1,0 +1,1 @@
+"""Future external API adapters."""

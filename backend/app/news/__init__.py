@@ -1,1 +1,0 @@
-"""Future news collection boundary."""
