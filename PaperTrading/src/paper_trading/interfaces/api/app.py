@@ -20,7 +20,7 @@ def create_app() -> FastAPI:
     """Build the HTTP adapter without importing it into inner layers."""
     settings = get_settings()
     configure_logging(settings.log_level)
-    application = FastAPI(title=settings.app_name, version="0.2.0")
+    application = FastAPI(title=settings.app_name, version="0.3.0")
 
     @application.get("/health", response_model=HealthResponse, tags=["system"])
     async def health() -> HealthResponse:
