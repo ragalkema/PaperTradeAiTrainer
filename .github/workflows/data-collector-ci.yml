@@ -1,0 +1,27 @@
+name: DataCollector CI
+
+on:
+  push:
+    branches: [main, dev]
+    paths: ["DataCollector/**", "shared/**", "pyproject.toml", ".github/workflows/data-collector-ci.yml"]
+  pull_request:
+    paths: ["DataCollector/**", "shared/**", "pyproject.toml", ".github/workflows/data-collector-ci.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: python -m pip install -e ".[dev]"
+      - run: ruff check DataCollector shared
+      - run: ruff format --check DataCollector shared
+      - run: mypy DataCollector/src shared/src
+      - run: pytest DataCollector/tests shared/tests --no-cov

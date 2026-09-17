@@ -1,0 +1,27 @@
+name: Shared CI
+
+on:
+  push:
+    branches: [main, dev]
+    paths: ["shared/**", "pyproject.toml", ".github/workflows/shared-ci.yml"]
+  pull_request:
+    paths: ["shared/**", "pyproject.toml", ".github/workflows/shared-ci.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: python -m pip install -e ".[dev]"
+      - run: ruff check shared
+      - run: ruff format --check shared
+      - run: mypy shared/src
+      - run: pytest shared/tests --no-cov
