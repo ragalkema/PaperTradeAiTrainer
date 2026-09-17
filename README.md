@@ -1,67 +1,58 @@
-# AI Paper Trading Platform
+# PaperTradeAiTrainer
 
-A professional research foundation for comparing AI/ML/RL crypto trading strategies under identical historical and live market conditions.
+A modular research platform for collecting crypto context, simulating virtual trading, and training/comparing AI trading agents under reproducible market conditions.
 
-> **Paper trading only.** This project does not execute real trades and is not financial advice. It contains no real-order endpoint, and bots cannot access exchange credentials.
-
-## Goals
-
-- Capture and normalize real-time and historical crypto market data.
-- Preserve immutable raw data and build point-in-time-safe features.
-- Run multiple independent bots against a deterministic paper exchange.
-- Reproduce and compare backtests and live paper experiments.
-- Later enrich observations with news and social sentiment.
-- Monitor results through an API and dashboard.
-
-No trading strategies, AI models, or exchange integrations are implemented yet.
+> **Paper trading only.** This repository cannot execute real trades and is not financial advice. It has no real-order interface, and bots never receive exchange credentials.
 
 ## Architecture
 
 ```mermaid
-flowchart TD
-    BV[Bitvavo public market data]
-    NEWS[News sources - future]
-    SOCIAL[Social sources - future]
-    BV --> DATA[Collection and normalization]
-    NEWS --> DATA
-    SOCIAL --> DATA
-    DATA --> RAW[(Immutable raw data)]
-    RAW --> FEATURES[Point-in-time feature engineering]
-    FEATURES --> BOTS[Trading bots]
-    BOTS --> EXCHANGE[Paper exchange]
-    EXCHANGE --> RESULTS[(Experiment results)]
-    RESULTS --> API[FastAPI]
-    API --> UI[React dashboard]
+flowchart LR
+    BV[Bitvavo public market data - future]
+    NEWS[Crypto news - future]
+    SOCIAL[Social media - future]
+    NEWS --> DC[DataCollector]
+    SOCIAL --> DC
+    BV --> PT[PaperTrading]
+    DC --> DATA[(Research data)]
+    PT --> DATA
+    DATA --> AI[AiTrainer]
+    AI -->|BotAction| PT
+    PT -->|MarketState / TradeResult| AI
+    PT --> RESULTS[(Paper results)]
+    AI --> EXP[(Experiments)]
 ```
 
-The system is a modular monolith. Bots consume normalized `MarketState` values and produce `BotAction` intents. Only the paper exchange handles virtual execution. See [architecture](docs/architecture.md), [bot interface](docs/bot-interface.md), and [data model](docs/data-model.md).
+The repository is one deployable-by-choice monorepo with strong logical boundaries:
 
-## Repository structure
+- **DataCollector** asks what is happening outside the market. It will acquire and normalize news/social data while preserving immutable raw input.
+- **PaperTrading** asks what is happening in the market and what a virtual execution would do. It owns public market data and the paper-only exchange boundary.
+- **AiTrainer** asks what a bot should decide and how well it performs. It owns bots, training, backtesting, evaluation, and experiments.
+- **shared** defines the small, framework-neutral language those projects use to communicate.
+- **frontend** remains the future React monitoring dashboard.
 
-- `backend/`: FastAPI, domain contracts, async persistence foundation, and tests.
-- `frontend/`: minimal React/TypeScript/Vite dashboard foundation.
-- `database/`: Alembic migration location and persistence notes.
-- `data/`: ignored local raw and processed datasets.
-- `models/`: ignored local model artifacts and storage guidance.
-- `docs/`: architecture, development, security, data, and roadmap decisions.
-- `scripts/`: cross-platform bootstrap scripts.
+Each Python project follows pragmatic Clean Architecture: interfaces and infrastructure depend on application/domain, while application defines ports and domain remains framework-free. Projects do not import one another's internals. See [architecture overview](docs/architecture/overview.md).
 
-## Technology
+## Repository map
 
-Python 3.12, FastAPI, Pydantic, SQLAlchemy asyncio, PostgreSQL, Alembic, pytest, Ruff, and mypy; React, TypeScript, Vite, ESLint, and Vitest; Redis for future queues/cache/pub-sub.
-
-## Local setup
-
-Prerequisites: Python 3.12+, Node.js 24 LTS, npm, and Docker Compose. The current
-frontend also remains compatible with Node.js 20.19+ for local development.
-
-```bash
-cp .env.example .env
-./scripts/setup.sh
-docker compose up -d
+```text
+DataCollector/    external text acquisition and normalization
+PaperTrading/     market observations and virtual execution
+AiTrainer/        bots, training, backtesting, evaluation
+shared/           inter-project contracts only
+tests/            architecture, contract, and end-to-end tests
+validation/       trust checks for boundaries/environment/system
+data/             ignored local raw/normalized/feature data
+models/           ignored model artifacts
+experiments/      versioned configs; ignored results/reports
+database/         Alembic migration foundation
+frontend/         React/TypeScript/Vite dashboard foundation
+docs/             architecture, data, and development guidance
 ```
 
-On PowerShell:
+## Setup
+
+Requirements: Python 3.12+, Node.js 24 LTS, npm, and Docker Compose.
 
 ```powershell
 Copy-Item .env.example .env
@@ -69,55 +60,56 @@ Copy-Item .env.example .env
 docker compose up -d
 ```
 
-The checked-in database password is development-only. Replace credentials and use managed secrets for any deployed environment. Bitvavo, news, and social credentials are optional; public market data and paper trading must not need trading credentials.
+POSIX shells can use `cp .env.example .env` and `./scripts/setup.sh`. PostgreSQL and Redis bind only to localhost and use obvious development-only credentials.
 
-## Run
+Run the PaperTrading status API:
 
-Backend, from `backend/` with the virtual environment active:
-
-```bash
-uvicorn app.main:app --reload
+```powershell
+.\.venv\Scripts\Activate.ps1
+uvicorn paper_trading.interfaces.api:app --reload
 ```
 
-`GET http://localhost:8000/health` returns `{"status":"healthy"}`.
+`GET /health` returns `{"status":"healthy","trading_mode":"paper"}`. Run the dashboard with `npm run dev --prefix frontend`.
 
-Frontend, from `frontend/`:
+## Tests and validation
 
-```bash
-npm run dev
+```powershell
+.\scripts\test.ps1
+.\scripts\test.ps1 -m unit
+.\scripts\test.ps1 -m "not slow"
+.\scripts\validate.ps1
 ```
 
-PostgreSQL and Redis bind only to localhost. Stop them with `docker compose down`; named volumes preserve local state.
+Tests verify expected software behavior. Validation checks whether actual data, configuration, contracts, or system state can be trusted. Project-local tests stay with each owner; root tests cover cross-project compatibility. Details are in [testing](docs/development/testing.md) and [validation](docs/development/validation.md).
 
-## Quality checks
+Quality checks:
 
-```bash
-cd backend
+```powershell
 ruff check .
 ruff format --check .
-mypy .
+mypy
 pytest
-
-cd ../frontend
-npm run lint
-npm run typecheck
-npm test
-npm run build
+npm run lint --prefix frontend
+npm run typecheck --prefix frontend
+npm test --prefix frontend
+npm run build --prefix frontend
 ```
 
-CI runs the same checks. The backend test command enforces 80% branch coverage.
+## Data and ML safety
 
-## Development and experiments
+Raw data is immutable. The pipeline is raw → normalized → features → training/backtesting. At time T, bots see only information available at or before T. External text retains `published_at`, `received_at`, and `processed_at`; training uses chronological splits and training-only normalization statistics. See [data pipeline](docs/data/data-pipeline.md), [timestamps](docs/data/timestamps.md), and [leakage prevention](docs/data/leakage-prevention.md).
 
-Use `feature/*` → `dev` → `main`; details and recommended GitHub rules are in [development](docs/development.md). Experiments should record bot/strategy/model versions, balance and time window, market/universe, configuration, metrics, feature/training-data versions, hyperparameters, seed, and commit. Outputs must point to versioned artifacts by URI/checksum rather than committing large files.
+Generated datasets, model binaries, experiment results, logs, database dumps, and secrets are ignored. Store large artifacts in versioned local/object storage with checksums and provenance. Heavy dependencies such as PyTorch, TensorFlow, Stable-Baselines3, Transformers, and XGBoost are intentionally absent.
 
-## Data and security
+## Security
 
-Raw captures are immutable; processed data is separately versioned and reproducible. Simulation clocks and availability timestamps prevent future information from entering backtests. Never commit market dumps, model binaries, checkpoints, logs, database dumps, or secrets. Full rules are in [data model](docs/data-model.md) and [security](docs/security.md).
+`.env` is ignored; `.env.example` contains placeholders only. Public market data and paper trading must not require trading-enabled credentials. Never log secrets or expose `BITVAVO_API_SECRET` to bots. Any future real-trading capability would require a separately reviewed architecture and does not belong in PaperTrading.
 
-## Roadmap
+CodeQL, Dependabot, per-project CI, architecture CI, frontend CI, pre-commit, and repository templates are configured. GitHub secret scanning, push protection, default branch, and repository rules must be enabled in GitHub settings.
 
-The next milestone is a read-only Bitvavo market-data adapter and normalized persistence. Later milestones cover paper execution, bot runtimes, backtesting, experiment comparison, text features, and the dashboard. See the complete [roadmap](docs/roadmap.md).
+## Development workflow and roadmap
+
+Use `feature/*` → `dev` → `main`; see [Git workflow](docs/development/git-workflow.md). The planned sequence starts with shared market contracts and public Bitvavo market data, then develops deterministic paper execution before bots or ML. See the complete [roadmap](docs/roadmap.md).
 
 ## License
 
