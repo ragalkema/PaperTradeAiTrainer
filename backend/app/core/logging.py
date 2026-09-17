@@ -1,7 +1,23 @@
 """Structured JSON logging configuration."""
 
+import json
 import logging
 from logging.config import dictConfig
+
+
+class JsonFormatter(logging.Formatter):
+    """Serialize the safe, common portion of a log record as valid JSON."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        return json.dumps(
+            {
+                "timestamp": self.formatTime(record, self.datefmt),
+                "level": record.levelname,
+                "logger": record.name,
+                "message": record.getMessage(),
+            },
+            ensure_ascii=False,
+        )
 
 
 def configure_logging(level: str) -> None:
@@ -12,10 +28,8 @@ def configure_logging(level: str) -> None:
             "disable_existing_loggers": False,
             "formatters": {
                 "json": {
-                    "format": (
-                        '{"timestamp":"%(asctime)s","level":"%(levelname)s",'
-                        '"logger":"%(name)s","message":"%(message)s"}'
-                    )
+                    "()": "app.core.logging.JsonFormatter",
+                    "datefmt": "%Y-%m-%dT%H:%M:%S%z",
                 }
             },
             "handlers": {
