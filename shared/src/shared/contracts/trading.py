@@ -4,6 +4,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
+from uuid import UUID
+
+from shared.contracts.values import MarketSymbol, Money, Price, Quantity, require_positive
 
 
 class ActionType(StrEnum):
@@ -15,48 +18,73 @@ class ActionType(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
-class MarketState:
-    """Point-in-time market observation available to a bot."""
-
-    symbol: str
-    observed_at: datetime
-    price: Decimal
-
-    def __post_init__(self) -> None:
-        if not self.symbol.strip():
-            raise ValueError("symbol must not be empty")
-        if self.observed_at.tzinfo is None:
-            raise ValueError("observed_at must be timezone-aware")
-        if self.price <= 0:
-            raise ValueError("price must be positive")
-
-
-@dataclass(frozen=True, slots=True)
 class BotAction:
-    """Bot intent; only PaperTrading may execute it virtually."""
+    """Bot intent: BUY spends quote value; SELL disposes base quantity."""
 
     action: ActionType
-    quantity: Decimal = Decimal("0")
+    market: MarketSymbol
+    requested_value: Money = Decimal("0")
+    quantity: Quantity = Decimal("0")
 
     def __post_init__(self) -> None:
-        if self.quantity < 0:
-            raise ValueError("quantity must not be negative")
-        if self.action is ActionType.HOLD and self.quantity != 0:
-            raise ValueError("hold actions must have zero quantity")
+        if self.action is ActionType.BUY:
+            require_positive(self.requested_value, "requested_value")
+            if self.quantity != 0:
+                raise ValueError("buy actions must not specify quantity")
+        elif self.action is ActionType.SELL:
+            require_positive(self.quantity, "quantity")
+            if self.requested_value != 0:
+                raise ValueError("sell actions must not specify requested_value")
+        elif self.requested_value != 0 or self.quantity != 0:
+            raise ValueError("hold actions must have zero value and quantity")
+
+    @classmethod
+    def buy(cls, market: MarketSymbol | str, requested_value: Money) -> "BotAction":
+        return cls(ActionType.BUY, _market(market), requested_value=requested_value)
+
+    @classmethod
+    def sell(cls, market: MarketSymbol | str, quantity: Quantity) -> "BotAction":
+        return cls(ActionType.SELL, _market(market), quantity=quantity)
+
+    @classmethod
+    def hold(cls, market: MarketSymbol | str) -> "BotAction":
+        return cls(ActionType.HOLD, _market(market))
+
+
+def _market(value: MarketSymbol | str) -> MarketSymbol:
+    return value if isinstance(value, MarketSymbol) else MarketSymbol(value)
 
 
 @dataclass(frozen=True, slots=True)
 class TradeResult:
-    """Result of a virtual execution attempt."""
+    """Complete result of a virtual execution attempt."""
 
     accepted: bool
     action: ActionType
-    quantity: Decimal
-    fill_price: Decimal | None = None
+    market: MarketSymbol
+    timestamp: datetime
+    quantity: Quantity = Decimal("0")
+    requested_value: Money = Decimal("0")
+    market_price: Price | None = None
+    execution_price: Price | None = None
+    fee: Money = Decimal("0")
+    slippage: Money = Decimal("0")
+    realized_pnl: Money = Decimal("0")
+    trade_id: UUID | None = None
     reason: str | None = None
 
-    def __post_init__(self) -> None:
-        if self.quantity < 0:
-            raise ValueError("quantity must not be negative")
-        if self.fill_price is not None and self.fill_price <= 0:
-            raise ValueError("fill_price must be positive")
+
+@dataclass(frozen=True, slots=True)
+class PerformanceMetrics:
+    """Initial strategy metrics shared with experiment runners."""
+
+    starting_balance: Money
+    portfolio_value: Money
+    absolute_pnl: Money
+    percentage_return: Decimal
+    trade_count: int
+    fees_paid: Money
+    winning_trades: int
+    losing_trades: int
+    win_rate: Decimal
+    maximum_drawdown: Decimal

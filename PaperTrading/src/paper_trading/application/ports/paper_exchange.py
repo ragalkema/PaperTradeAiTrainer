@@ -2,9 +2,9 @@
 
 from abc import ABC, abstractmethod
 
-from shared.contracts import MarketState
+from shared.contracts import BotAction, MarketState, PerformanceMetrics, TradeResult
 
-from paper_trading.domain.entities import OrderRequest, PaperOrder, PortfolioSnapshot
+from paper_trading.domain.entities import PaperTrade, PortfolioSnapshot
 
 
 class PaperExchange(ABC):
@@ -15,9 +15,18 @@ class PaperExchange(ABC):
         """Advance virtual execution with a normalized observation."""
 
     @abstractmethod
-    def submit_order(self, request: OrderRequest) -> PaperOrder:
-        """Submit a virtual order."""
+    def execute(self, action: BotAction) -> TradeResult:
+        """Execute a BUY/SELL/HOLD action virtually."""
 
     @abstractmethod
-    def portfolio(self) -> PortfolioSnapshot:
+    def snapshot(self) -> PortfolioSnapshot:
         """Return the current virtual portfolio state."""
+
+    @property
+    @abstractmethod
+    def trades(self) -> tuple[PaperTrade, ...]:
+        """Return immutable virtual execution history."""
+
+    @abstractmethod
+    def metrics(self) -> PerformanceMetrics:
+        """Return initial performance metrics."""

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "paper-trade-ai-trainer"
-version = "0.2.0"
+version = "0.3.0"
 description = "Clean Architecture foundation for AI crypto paper-trading research"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -12,14 +12,15 @@ dependencies = [
   "alembic>=1.14,<2",
   "asyncpg>=0.30,<1",
   "fastapi>=0.115,<1",
+  "httpx>=0.28,<1",
   "pydantic-settings>=2.7,<3",
   "sqlalchemy[asyncio]>=2.0,<3",
   "uvicorn[standard]>=0.34,<1",
+  "websockets>=15,<18",
 ]
 
 [project.optional-dependencies]
 dev = [
-  "httpx>=0.28,<1",
   "mypy>=1.14,<2",
   "pytest>=8.3,<9",
   "pytest-cov>=6,<7",
@@ -67,5 +68,12 @@ select = ["E", "F", "I", "B", "UP", "RUF"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["DataCollector/src", "PaperTrading/src", "AiTrainer/src", "shared/src", "tests"]
+files = [
+  "DataCollector/src",
+  "PaperTrading/src",
+  "AiTrainer/src",
+  "shared/src",
+  "tests",
+  "scripts/run_experiment.py",
+]
 mypy_path = ["DataCollector/src", "PaperTrading/src", "AiTrainer/src", "shared/src"]
