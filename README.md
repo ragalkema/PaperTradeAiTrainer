@@ -8,7 +8,7 @@ A modular research platform for collecting crypto context, simulating virtual tr
 
 ```mermaid
 flowchart LR
-    BV[Bitvavo public market data - future]
+    BV[Bitvavo public market data]
     NEWS[Crypto news - future]
     SOCIAL[Social media - future]
     NEWS --> DC[DataCollector]
@@ -26,8 +26,8 @@ flowchart LR
 The repository is one deployable-by-choice monorepo with strong logical boundaries:
 
 - **DataCollector** asks what is happening outside the market. It will acquire and normalize news/social data while preserving immutable raw input.
-- **PaperTrading** asks what is happening in the market and what a virtual execution would do. It owns public market data and the paper-only exchange boundary.
-- **AiTrainer** asks what a bot should decide and how well it performs. It owns bots, training, backtesting, evaluation, and experiments.
+- **PaperTrading** retrieves public Bitvavo market data and deterministically simulates spot BUY/SELL/HOLD with independent virtual portfolios.
+- **AiTrainer** currently supplies three baseline bots and reproducible historical comparison; future ML/RL training stays here.
 - **shared** defines the small, framework-neutral language those projects use to communicate.
 - **frontend** remains the future React monitoring dashboard.
 
@@ -71,6 +71,22 @@ uvicorn paper_trading.interfaces.api:app --reload
 
 `GET /health` returns `{"status":"healthy","trading_mode":"paper"}`. Run the dashboard with `npm run dev --prefix frontend`.
 
+Use the functional MVP:
+
+```powershell
+# Public data; no API credentials required
+python -m paper_trading price BTC-EUR
+python -m paper_trading candles BTC-EUR 1h --limit 100
+
+# Interactive virtual account
+python -m paper_trading trade
+
+# Three independent baseline bots on identical historical candles
+python scripts/run_experiment.py BTC-EUR 1h --limit 100 --seed 42
+```
+
+See [PaperTrading](PaperTrading/README.md), [AiTrainer](AiTrainer/README.md), and the [MVP execution notes](docs/development/paper-trading.md).
+
 ## Tests and validation
 
 ```powershell
@@ -109,7 +125,7 @@ CodeQL, Dependabot, per-project CI, architecture CI, frontend CI, pre-commit, an
 
 ## Development workflow and roadmap
 
-Use `feature/*` → `dev` → `main`; see [Git workflow](docs/development/git-workflow.md). The planned sequence starts with shared market contracts and public Bitvavo market data, then develops deterministic paper execution before bots or ML. See the complete [roadmap](docs/roadmap.md).
+Use `feature/*` → `dev` → `main`; see [Git workflow](docs/development/git-workflow.md). Shared market contracts, public Bitvavo data, deterministic spot paper execution, baseline bots, and initial historical comparison are implemented. See the remaining [roadmap](docs/roadmap.md).
 
 ## License
 

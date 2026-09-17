@@ -10,4 +10,6 @@ Bitvavo public market data → MarketDataPort adapter → MarketState
                                            virtual execution
 ```
 
-There is no real-order port and no deposit, withdrawal, or live execution adapter. Bots receive shared observations and submit shared intents through the bot gateway; they never receive Bitvavo clients or credentials. Future simulation validation must detect impossible balances, prices, quantities, timestamps, portfolio states, and agent attempts to exploit simulator behavior.
+There is no real-order port and no deposit, withdrawal, or live execution adapter. Bots receive shared observations and submit shared intents through the bot gateway; they never receive Bitvavo clients or credentials.
+
+The current deterministic engine supports virtual spot market BUY/SELL/HOLD, bid/ask spread, configurable fee and adverse percentage slippage, cost basis, P&L, history, valuation, and initial metrics. It checks impossible balances, prices, quantities, timestamps, fee accounting, and money/asset conservation after execution.

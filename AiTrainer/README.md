@@ -1,5 +1,19 @@
 # AiTrainer
 
-Owns model-independent bot contracts, datasets, training, backtesting, evaluation, comparison, and reproducible experiment metadata. It does not import Bitvavo or PaperTrading infrastructure; it communicates through shared contracts and future application adapters.
+AiTrainer currently provides three intentionally simple baseline bots and a source-neutral runner:
 
-XGBoost, PyTorch, Gymnasium, Stable-Baselines3, Optuna, Transformers, PPO, and SAC are intentionally not installed or implemented.
+- `RandomBot`: seeded BUY/SELL/HOLD choices.
+- `BuyAndHoldBot`: buys once after a successful fill, then holds.
+- `MovingAverageBot`: compares short and long simple moving averages.
+
+Each bot implements the same framework-neutral `TradingBot` interface. `MultiBotRunner` broadcasts identical `MarketState` values while every bot owns an independent `PaperSessionPort`. Bots do not know whether data came from Bitvavo, stored candles, or tests.
+
+Run a public historical comparison from the repository root:
+
+```powershell
+python scripts/run_experiment.py BTC-EUR 1h --limit 100 --seed 42
+```
+
+The output compares return, maximum drawdown, trades, and fees. Experiment metadata includes market, interval, period, execution settings, bot configuration, seed, and Git commit where available. Historical performance does not predict future profitability.
+
+No ML or RL libraries/models are implemented yet.
