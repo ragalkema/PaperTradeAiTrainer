@@ -9,7 +9,7 @@ from paper_trading.application.services.experiment_persistence import (
     ExperimentPersistenceService,
     ExperimentRegistration,
 )
-from paper_trading.domain.entities import ExperimentStatus, SessionStatus
+from paper_trading.domain.entities import BotStatus, ExperimentStatus, SessionStatus
 from shared.contracts import MarketSymbol
 
 
@@ -18,6 +18,7 @@ class RecordingRepository:
         self.values: dict[str, list[Any]] = {}
         self.session_status: tuple[SessionStatus, datetime | None] | None = None
         self.experiment_status: tuple[ExperimentStatus, datetime | None] | None = None
+        self.bot_status: BotStatus | None = None
 
     async def _add(self, name: str, value: object) -> None:
         self.values.setdefault(name, []).append(value)
@@ -56,6 +57,9 @@ class RecordingRepository:
     ) -> None:
         self.experiment_status = status, ended_at
 
+    async def set_session_bots_status(self, session_id: object, status: BotStatus) -> None:
+        self.bot_status = status
+
 
 @pytest.mark.integration
 def test_service_creates_independent_participants_and_finalizes() -> None:
@@ -87,3 +91,4 @@ def test_service_creates_independent_participants_and_finalizes() -> None:
         repository.experiment_status
         and repository.experiment_status[0] is ExperimentStatus.COMPLETED
     )
+    assert repository.bot_status is BotStatus.COMPLETED

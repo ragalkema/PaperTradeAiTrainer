@@ -9,6 +9,7 @@ from paper_trading.application.services.experiment_persistence import (
     ExperimentPersistenceService,
     ExperimentRegistration,
 )
+from paper_trading.domain.entities import BotStatus
 from paper_trading.infrastructure.persistence import Base, SqlAlchemyResearchRepository
 from shared.contracts import BotAction, MarketState, MarketSymbol
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -53,6 +54,7 @@ def test_repository_round_trip_queries_and_performance() -> None:
         assert experiment and experiment.name == "Round trip"
         assert len(participants) == 1
         participant = participants[0]
+        assert participant.status is BotStatus.COMPLETED
         assert (await repository.current_portfolio(participant.session_bot_id)) is not None
         assert len(await repository.recent_trades(run.session_id)) == 1
         assert len(await repository.decisions(participant.session_bot_id)) == 1

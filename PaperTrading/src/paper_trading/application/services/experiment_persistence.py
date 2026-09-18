@@ -131,6 +131,7 @@ class ExperimentPersistenceService:
         await run.recorder.flush(self._repository)
         ended_at = _latest_recorded_time(run.recorder) or datetime.now(UTC)
         await self._repository.set_session_status(run.session_id, SessionStatus.COMPLETED, ended_at)
+        await self._repository.set_session_bots_status(run.session_id, BotStatus.COMPLETED)
         await self._repository.set_experiment_status(
             run.experiment_id, ExperimentStatus.COMPLETED, ended_at
         )
@@ -138,6 +139,7 @@ class ExperimentPersistenceService:
     async def fail(self, run: PersistedExperimentRun) -> None:
         ended_at = datetime.now(UTC)
         await self._repository.set_session_status(run.session_id, SessionStatus.FAILED, ended_at)
+        await self._repository.set_session_bots_status(run.session_id, BotStatus.FAILED)
         await self._repository.set_experiment_status(
             run.experiment_id, ExperimentStatus.FAILED, ended_at
         )

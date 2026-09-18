@@ -96,6 +96,14 @@ class SqlAlchemyResearchRepository:
                 .values(status=status.value, ended_at=ended_at)
             )
 
+    async def set_session_bots_status(self, session_id: UUID, status: BotStatus) -> None:
+        async with self._sessions.begin() as session:
+            await session.execute(
+                update(SessionBotModel)
+                .where(SessionBotModel.session_id == session_id)
+                .values(status=status.value)
+            )
+
     async def _scalars(self, query: Select[tuple[Any]]) -> tuple[Any, ...]:
         async with self._sessions() as session:
             return tuple((await session.scalars(query)).all())

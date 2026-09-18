@@ -7,6 +7,7 @@ from uuid import UUID
 from paper_trading.domain.entities import (
     BotDecisionRecord,
     BotDefinitionRecord,
+    BotStatus,
     ExperimentRecord,
     ExperimentStatus,
     PaperSessionRecord,
@@ -34,6 +35,7 @@ class ResearchWritePort(Protocol):
     async def set_experiment_status(
         self, experiment_id: UUID, status: ExperimentStatus, ended_at: datetime | None = None
     ) -> None: ...
+    async def set_session_bots_status(self, session_id: UUID, status: BotStatus) -> None: ...
 
 
 class ResearchQueryPort(Protocol):
