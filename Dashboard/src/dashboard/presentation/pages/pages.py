@@ -87,6 +87,8 @@ class OverviewPage(QWidget):
         sentiment = Card("News sentiment · analyzed last 24 hours")
         self.sentiment_summary = QLabel("Insufficient analyzed news")
         sentiment.content.addWidget(self.sentiment_summary)
+        self.social_sentiment_summary = QLabel("Social: insufficient analyzed posts")
+        sentiment.content.addWidget(self.social_sentiment_summary)
         layout.addWidget(sentiment)
         online_rankings = QHBoxLayout()
         important = Card("Most important news · ONLINE")
@@ -148,6 +150,20 @@ class OverviewPage(QWidget):
                 summaries.append(f"{asset} {mean:+.2f} (n={len(sentiment_values)})")
         self.sentiment_summary.setText(
             "  ·  ".join(summaries) if summaries else "Insufficient analyzed news"
+        )
+        social_summaries = []
+        for asset in ("BTC", "ETH", "SOL"):
+            values = [
+                item.sentiment
+                for item in snapshot.social
+                if asset in item.assets and item.sentiment is not None
+            ]
+            if values:
+                mean = sum(values, start=values[0] * 0) / len(values)
+                social_summaries.append(f"{asset} {mean:+.2f} (n={len(values)})")
+        self.social_sentiment_summary.setText(
+            "Social: "
+            + (" · ".join(social_summaries) if social_summaries else "insufficient analyzed posts")
         )
         for table, ranked_events, field in (
             (self.importance_table, DashboardService.top_importance(snapshot.news), "importance"),
@@ -345,9 +361,37 @@ class DashboardPages:
         self.news.table.cellDoubleClicked.connect(self._show_news_detail)
         self.social = TablePage(
             "Social Intelligence",
-            "Normalized collector output only",
-            ["Author", "Time", "Preview", "Assets", "Sentiment", "Influence", "Estimated impact"],
-            "Social collector disabled.",
+            "ONLINE scores and RETROSPECTIVE associations are distinct",
+            [
+                "Author",
+                "Received",
+                "Preview",
+                "Asset",
+                "Relevance · ONLINE",
+                "Sentiment · ONLINE",
+                "Importance · ONLINE",
+                "Novelty · ONLINE",
+                "Influence · ONLINE",
+                "Event type",
+                "Impact · RETROSPECTIVE",
+            ],
+            "No persisted social posts. Configure X access and tracked accounts to collect.",
+        )
+        self.intelligence = TablePage(
+            "Market Intelligence",
+            "Combined receipt-time feed; online metrics only",
+            [
+                "Type",
+                "Received",
+                "Source",
+                "Preview",
+                "Asset",
+                "Sentiment",
+                "Importance",
+                "Relevance",
+                "Event type",
+            ],
+            "No analyzed news or social intelligence available.",
         )
         self.trades = TablePage(
             "Paper Trades",
@@ -378,6 +422,7 @@ class DashboardPages:
             ("Experiments", self.experiments),
             ("News", self.news),
             ("Social", self.social),
+            ("Intelligence", self.intelligence),
             ("Trades", self.trades),
             ("Positions", self.positions),
             ("Decisions", self.decisions),
@@ -432,6 +477,26 @@ class DashboardPages:
         self.news_type_filter.blockSignals(False)
         self._update_news()
         self._update_intelligence(self.social, snapshot.social)
+        combined = tuple(
+            sorted(
+                (*snapshot.news, *snapshot.social), key=lambda item: item.occurred_at, reverse=True
+            )
+        )
+        combined_rows = [
+            [
+                event.kind.upper(),
+                event.occurred_at.astimezone().strftime("%Y-%m-%d %H:%M"),
+                event.source or "N/A",
+                event.title,
+                ", ".join(event.assets),
+                format_percent(event.sentiment),
+                format_score(event.importance),
+                format_score(event.relevance),
+                event.event_type or "N/A",
+            ]
+            for event in combined
+        ]
+        self._set_rows(self.intelligence, combined_rows)
         self._update_experiments(snapshot)
         self._update_positions(snapshot)
         self._update_decisions(snapshot)
@@ -558,6 +623,25 @@ class DashboardPages:
         self._set_rows(self.decisions, rows)
 
     def _update_intelligence(self, page: TablePage, events: tuple[IntelligenceEvent, ...]) -> None:
+        if page is self.social:
+            rows = [
+                [
+                    event.source or "N/A",
+                    event.occurred_at.astimezone().strftime("%Y-%m-%d %H:%M"),
+                    event.title,
+                    ", ".join(event.assets),
+                    format_score(event.relevance),
+                    format_percent(event.sentiment),
+                    format_score(event.importance),
+                    format_score(event.novelty),
+                    format_score(event.author_influence),
+                    event.event_type or "N/A",
+                    format_score(event.estimated_impact),
+                ]
+                for event in events
+            ]
+            self._set_rows(page, rows)
+            return
         rows = [
             [
                 event.title,

@@ -21,6 +21,21 @@ from data_collector.domain.entities.news import (
     RawNewsStatus,
     SourceHealth,
 )
+from data_collector.domain.entities.social import (
+    OnlineSocialItem,
+    RawSocialPost,
+    SocialAccountCategory,
+    SocialEngagementSnapshot,
+    SocialEvent,
+    SocialEventType,
+    SocialFeatureSnapshot,
+    SocialIntelligence,
+    SocialMarketImpact,
+    SocialMarketReaction,
+    SocialPostType,
+    TrackedSocialAccount,
+    VerificationStatus,
+)
 
 __all__ = [
     "AssetSentiment",
@@ -36,8 +51,21 @@ __all__ = [
     "NewsSourceKind",
     "NoveltyResult",
     "OnlineNewsItem",
+    "OnlineSocialItem",
     "RawNewsItem",
     "RawNewsStatus",
+    "RawSocialPost",
     "RetrospectiveImpact",
+    "SocialAccountCategory",
+    "SocialEngagementSnapshot",
+    "SocialEvent",
+    "SocialEventType",
+    "SocialFeatureSnapshot",
+    "SocialIntelligence",
+    "SocialMarketImpact",
+    "SocialMarketReaction",
+    "SocialPostType",
     "SourceHealth",
+    "TrackedSocialAccount",
+    "VerificationStatus",
 ]

@@ -1,0 +1,18 @@
+[
+  {
+    "provider": "x",
+    "username": "Bitcoin",
+    "display_name": "Bitcoin example account",
+    "category": "project",
+    "priority": 50,
+    "enabled": false
+  },
+  {
+    "provider": "x",
+    "username": "ethereum",
+    "display_name": "Ethereum example account",
+    "category": "project",
+    "priority": 50,
+    "enabled": false
+  }
+]

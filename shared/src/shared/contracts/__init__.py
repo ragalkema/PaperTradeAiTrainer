@@ -16,5 +16,7 @@ __all__ = [
     "PerformanceMetrics",
     "Price",
     "Quantity",
+    "ResearchFeatureSnapshot",
     "TradeResult",
 ]
+from shared.contracts.intelligence import ResearchFeatureSnapshot

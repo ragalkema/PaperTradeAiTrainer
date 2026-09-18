@@ -11,3 +11,5 @@ Experiments record dataset, feature and model versions; chronological windows; c
 Online news queries require both `received_at <= decision_time` and normalized event `processed_at <= decision_time`. Versioned intelligence may be reproduced later during a chronological backfill, so its database insertion time is provenance rather than a reason to hide source information that was already available. Novelty compares only with events received earlier. `NewsFeatureService` depends exclusively on `OnlineIntelligenceQueryPort`; its snapshot contains no reaction, impact, return, future-volume, or future-volatility fields.
 
 Retrospective impact is a separate research path. It may use observations after receipt and is exposed through `RetrospectiveResearchPort`, never the AiTrainer-facing online port. Its score indicates temporal association, not causality.
+
+Social engagement is time-varying. A feature at T selects only the latest engagement snapshot observed at or before T; later likes, replies, reposts, quotes, views, or bookmarks cannot leak backward. Online social features do not import social reaction or impact modules.

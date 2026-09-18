@@ -11,6 +11,7 @@ from data_collector.infrastructure.persistence.models import (
     RawNewsItemModel,
 )
 from data_collector.infrastructure.persistence.repository import SqlAlchemyNewsRepository
+from data_collector.infrastructure.persistence.social_repository import SqlAlchemySocialRepository
 
 __all__ = [
     "DataCollectorBase",
@@ -22,4 +23,5 @@ __all__ = [
     "NewsSourceModel",
     "RawNewsItemModel",
     "SqlAlchemyNewsRepository",
+    "SqlAlchemySocialRepository",
 ]

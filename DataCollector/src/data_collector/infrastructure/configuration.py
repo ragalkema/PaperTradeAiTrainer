@@ -12,6 +12,7 @@ class DataCollectorSettings(BaseSettings):
     database_url: str = "postgresql+asyncpg://papertrading:papertrading@localhost:5432/papertrading"
     news_future_tolerance_minutes: int = 10
     news_query_limit: int = 200
+    x_api_bearer_token: str | None = None
 
     @property
     def future_tolerance(self) -> timedelta:

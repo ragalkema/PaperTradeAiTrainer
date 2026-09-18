@@ -24,3 +24,18 @@ python -m data_collector update-market-reactions
 ```
 
 Online records contain per-asset sentiment, importance, event type, novelty, confidence, versions, and explanations. Retrospective impact is research-only and never appears in an online feature snapshot.
+
+## Social intelligence
+
+X API v2 is the first adapter behind provider-neutral social contracts. No account list is silently populated; import the disabled example or your reviewed configuration:
+
+```powershell
+python -m data_collector social-accounts import config/social_accounts.example.json
+python -m data_collector social-accounts list
+python -m data_collector social-accounts enable username
+python -m data_collector social-once
+python -m data_collector analyze-social
+python -m data_collector update-social-reactions
+```
+
+Collection requires `X_API_BEARER_TOKEN`. Normal CI uses legal synthetic fixtures and never requires live X access. Engagement observations are append-only and queried as-of the decision time.

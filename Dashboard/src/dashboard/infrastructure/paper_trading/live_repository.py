@@ -10,7 +10,15 @@ from typing import Any, Protocol, cast
 from uuid import UUID
 
 from data_collector.application.ports import NewsQueryPort
-from data_collector.domain.entities import MarketAssociation, NewsIntelligence, RetrospectiveImpact
+from data_collector.domain.entities import (
+    MarketAssociation,
+    NewsIntelligence,
+    RetrospectiveImpact,
+    SocialEvent,
+    SocialIntelligence,
+    SocialMarketImpact,
+    SocialMarketReaction,
+)
 from paper_trading.application.ports import ResearchQueryPort
 from paper_trading.infrastructure.bitvavo import BitvavoMarketDataAdapter
 from shared.contracts import MarketSymbol
@@ -38,6 +46,15 @@ class DashboardNewsQueryPort(NewsQueryPort, Protocol):
     async def associations(self, news_event_id: UUID) -> tuple[MarketAssociation, ...]: ...
 
 
+class DashboardSocialQueryPort(Protocol):
+    async def recent_social(self, since: datetime, limit: int = 200) -> tuple[SocialEvent, ...]: ...
+    async def social_intelligence_for_event(
+        self, event_id: UUID
+    ) -> tuple[SocialIntelligence, ...]: ...
+    async def social_impacts(self, event_id: UUID) -> tuple[SocialMarketImpact, ...]: ...
+    async def social_reactions(self, event_id: UUID) -> tuple[SocialMarketReaction, ...]: ...
+
+
 class LiveDashboardRepository:
     """Thread-safe latest snapshot backed only by public Bitvavo reads."""
 
@@ -46,10 +63,12 @@ class LiveDashboardRepository:
         markets: tuple[str, ...] = ("BTC-EUR", "ETH-EUR", "SOL-EUR"),
         research: ResearchQueryPort | None = None,
         news: DashboardNewsQueryPort | None = None,
+        social: DashboardSocialQueryPort | None = None,
     ) -> None:
         self._markets = markets
         self._research = research
         self._news = news
+        self._social = social
         initial = tuple(
             MarketSummary(market, state=ConnectionState.CONNECTING) for market in markets
         )
@@ -58,7 +77,7 @@ class LiveDashboardRepository:
             connections={
                 "Bitvavo": ConnectionState.CONNECTING,
                 "News": ConnectionState.CONNECTING if news else ConnectionState.DISABLED,
-                "Social/X": ConnectionState.DISABLED,
+                "Social/X": ConnectionState.CONNECTING if social else ConnectionState.DISABLED,
                 "PostgreSQL": ConnectionState.DISCONNECTED,
                 "Redis": ConnectionState.DISCONNECTED,
             },
@@ -94,6 +113,15 @@ class LiveDashboardRepository:
                     logger.exception("dashboard_news_refresh_failed")
                     connections["News"] = ConnectionState.ERROR
                     errors += ("News database unavailable. Other data remains live.",)
+            social_values: dict[str, object] = {}
+            if self._social:
+                try:
+                    social_values = {"social": asyncio.run(self._fetch_social())}
+                    connections["Social/X"] = ConnectionState.CONNECTED
+                except Exception:
+                    logger.exception("dashboard_social_refresh_failed")
+                    connections["Social/X"] = ConnectionState.ERROR
+                    errors += ("Social database unavailable. Other data remains live.",)
             updated = replace(
                 self.snapshot(),
                 markets=markets,
@@ -101,6 +129,7 @@ class LiveDashboardRepository:
                 errors=errors,
                 **cast(Any, research_values),
                 **cast(Any, news_values),
+                **cast(Any, social_values),
             )
         except Exception:  # UI boundary converts details to logs and safe state.
             logger.exception("dashboard_market_refresh_failed")
@@ -117,6 +146,52 @@ class LiveDashboardRepository:
         with self._lock:
             self._snapshot = updated
         return updated
+
+    async def _fetch_social(self) -> tuple[IntelligenceEvent, ...]:
+        assert self._social is not None
+        events = await self._social.recent_social(datetime.now(UTC) - timedelta(hours=24))
+        output = []
+        for event in events:
+            intelligence, impacts, reactions = await asyncio.gather(
+                self._social.social_intelligence_for_event(event.social_event_id),
+                self._social.social_impacts(event.social_event_id),
+                self._social.social_reactions(event.social_event_id),
+            )
+            impact_by_asset = {x.asset: x for x in impacts}
+            for value in intelligence:
+                impact = impact_by_asset.get(value.asset)
+                available = len(impact.available_windows) if impact else 0
+                total = available + len(impact.pending_windows) if impact else 0
+                asset_reactions = tuple(
+                    (x.window_minutes, x.price_return)
+                    for x in reactions
+                    if x.market.startswith(f"{value.asset}-")
+                )
+                output.append(
+                    IntelligenceEvent(
+                        str(event.social_event_id),
+                        "social",
+                        event.received_at,
+                        event.text,
+                        event.username,
+                        (value.asset,),
+                        value.sentiment,
+                        value.relevance,
+                        value.importance,
+                        impact.score if impact else None,
+                        value.account_influence,
+                        value.novelty,
+                        value.event_type.value,
+                        event.created_at,
+                        value.processed_at,
+                        value.sentiment_confidence,
+                        value.event_confidence,
+                        f"{available}/{total} windows" if impact else "Pending",
+                        asset_reactions,
+                        value.explanation.get("importance", ()),
+                    )
+                )
+        return tuple(output)
 
     async def _fetch_news(self) -> tuple[IntelligenceEvent, ...]:
         assert self._news is not None

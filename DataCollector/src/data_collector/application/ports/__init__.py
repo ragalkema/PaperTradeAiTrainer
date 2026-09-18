@@ -9,6 +9,7 @@ from data_collector.application.ports.intelligence import (
     SentimentAnalyzer,
 )
 from data_collector.application.ports.news import NewsQueryPort, NewsSourcePort, NewsWritePort
+from data_collector.application.ports.social import OnlineSocialQueryPort, SocialSourcePort
 
 __all__ = [
     "EventClassifier",
@@ -18,6 +19,8 @@ __all__ = [
     "NewsWritePort",
     "NoveltyAnalyzer",
     "OnlineIntelligenceQueryPort",
+    "OnlineSocialQueryPort",
     "RetrospectiveResearchPort",
     "SentimentAnalyzer",
+    "SocialSourcePort",
 ]
