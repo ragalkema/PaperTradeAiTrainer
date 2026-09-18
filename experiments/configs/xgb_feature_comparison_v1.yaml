@@ -1,0 +1,35 @@
+version: xgb_feature_comparison_v1
+market: BTC-EUR
+interval: 1h
+target:
+  name: future_return
+  version: future_return_v1
+  horizon: 1h
+features: [market_only, market_news, market_social, market_news_social]
+feature_versions:
+  market: market_features_v1
+  news: online_news_features_v1
+  social: online_social_features_v1
+split:
+  train: 0.70
+  validation: 0.15
+  test: 0.15
+  purge: 1h
+model:
+  algorithm: xgboost
+  objective: reg:squarederror
+  n_estimators: 300
+  max_depth: 4
+  learning_rate: 0.03
+  subsample: 0.8
+  colsample_bytree: 0.8
+  min_child_weight: 5
+  reg_alpha: 0.1
+  reg_lambda: 1.0
+  random_seed: 42
+paper_trading:
+  enabled: false
+  starting_capital: 10000
+  fee_rate: 0.0025
+  slippage_rate: 0.0005
+  threshold_selection: validation_only

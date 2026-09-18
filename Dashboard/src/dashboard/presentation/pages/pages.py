@@ -1,5 +1,8 @@
 """Research-focused pages with safe empty states."""
 
+from decimal import Decimal
+
+from pyqtgraph import PlotWidget, mkPen  # type: ignore[import-untyped]
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox,
@@ -306,6 +309,95 @@ class SettingsPage(QWidget):
         layout.addStretch()
 
 
+class MLResearchPage(QWidget):
+    """Read-only persisted supervised research; training never runs on the UI thread."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 20, 24, 24)
+        layout.addWidget(
+            SectionTitle("ML Research", "Point-in-time out-of-sample feature comparison")
+        )
+        self.dataset = QLabel("No dataset or trained models available.")
+        self.dataset.setObjectName("muted")
+        layout.addWidget(self.dataset)
+        layout.addWidget(QLabel("XGBOOST FEATURE GROUP COMPARISON"))
+        self.models = _table(
+            ["Model", "Features", "MAE", "RMSE", "R²", "Pearson", "Spearman", "Direction"]
+        )
+        layout.addWidget(self.models)
+        layout.addWidget(QLabel("TOP MODEL-DERIVED FEATURE IMPORTANCE (GAIN, NOT CAUSALITY)"))
+        self.importance = _table(["Model", "Feature", "Gain"])
+        layout.addWidget(self.importance)
+        charts = QHBoxLayout()
+        self.prediction_chart = PlotWidget(title="Predicted vs actual return over test rows")
+        self.scatter_chart = PlotWidget(title="Predicted return vs actual return")
+        self.prediction_chart.setLabel("left", "Return")
+        self.prediction_chart.setLabel("bottom", "Chronological test row")
+        self.scatter_chart.setLabel("left", "Actual return")
+        self.scatter_chart.setLabel("bottom", "Predicted return")
+        charts.addWidget(self.prediction_chart)
+        charts.addWidget(self.scatter_chart)
+        layout.addLayout(charts)
+
+    def update_snapshot(self, snapshot: DashboardSnapshot) -> None:
+        research = snapshot.ml_research
+        if research is None:
+            self.dataset.setText("No dataset or trained models available.")
+            self.models.setRowCount(0)
+            self.importance.setRowCount(0)
+            self.prediction_chart.clear()
+            self.scatter_chart.clear()
+            return
+        self.dataset.setText(
+            f"{research.market} · {research.interval} · {research.target} · "
+            f"{research.start_time:%Y-%m-%d} — {research.end_time:%Y-%m-%d} · "
+            f"dataset {research.dataset_id[:8]} · rows {research.row_count or 'N/A'} · "
+            f"news {_number(research.news_coverage)} · social {_number(research.social_coverage)}"
+        )
+        self.models.setRowCount(len(research.models))
+        importance: list[tuple[str, str, float]] = []
+        for row, model in enumerate(research.models):
+            values = [
+                model.name,
+                model.features,
+                _number(model.mae),
+                _number(model.rmse),
+                _number(model.r_squared),
+                _number(model.correlation),
+                _number(model.spearman),
+                format_percent(Decimal(str(model.directional_accuracy)))
+                if model.directional_accuracy is not None
+                else "N/A",
+            ]
+            for column, value in enumerate(values):
+                self.models.setItem(row, column, QTableWidgetItem(value))
+            importance.extend((model.name, name, gain) for name, gain in model.feature_importance)
+        self.importance.setRowCount(len(importance))
+        for row, (model_name, name, gain) in enumerate(importance):
+            for column, value in enumerate((model_name, name, f"{gain:.6g}")):
+                self.importance.setItem(row, column, QTableWidgetItem(value))
+        selected = next((item for item in research.models if item.algorithm == "xgboost"), None)
+        self.prediction_chart.clear()
+        self.scatter_chart.clear()
+        if selected and selected.predictions and selected.actuals:
+            self.prediction_chart.plot(selected.predictions, pen=mkPen("#46a0ff", width=2))
+            self.prediction_chart.plot(selected.actuals, pen=mkPen("#f6c85f", width=2))
+            self.scatter_chart.plot(
+                selected.predictions,
+                selected.actuals,
+                pen=None,
+                symbol="o",
+                symbolSize=5,
+                symbolBrush="#46a0ff",
+            )
+
+
+def _number(value: float | None) -> str:
+    return "N/A" if value is None else f"{value:.6g}"
+
+
 class DashboardPages:
     def __init__(self) -> None:
         self.overview = OverviewPage()
@@ -412,6 +504,7 @@ class DashboardPages:
             "No recorded bot decisions available.",
         )
         self.data = SystemPage()
+        self.ml_research = MLResearchPage()
         self.training = self._training_page()
         self.system = SystemPage()
         self.settings = SettingsPage()
@@ -427,6 +520,7 @@ class DashboardPages:
             ("Positions", self.positions),
             ("Decisions", self.decisions),
             ("Data", self.data),
+            ("ML Research", self.ml_research),
             ("Training", self.training),
             ("System", self.system),
             ("Settings", self.settings),
@@ -464,6 +558,7 @@ class DashboardPages:
         self.markets.update_snapshot(snapshot)
         self.data.update_snapshot(snapshot)
         self.system.update_snapshot(snapshot)
+        self.ml_research.update_snapshot(snapshot)
         self._update_bots(snapshot)
         self._update_trades(snapshot)
         known_types = sorted({item.event_type for item in snapshot.news if item.event_type})

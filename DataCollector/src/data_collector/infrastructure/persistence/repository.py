@@ -226,6 +226,25 @@ class SqlAlchemyNewsRepository:
             if existing is None:
                 session.add(NewsFeatureSnapshotModel(**values))
 
+    async def feature_snapshots(
+        self, market: str, start: datetime, end: datetime
+    ) -> tuple[NewsFeatureSnapshot, ...]:
+        """Load a whole research interval in one query; never query once per decision row."""
+        query = (
+            select(NewsFeatureSnapshotModel)
+            .where(
+                and_(
+                    NewsFeatureSnapshotModel.market == market,
+                    NewsFeatureSnapshotModel.feature_time >= start,
+                    NewsFeatureSnapshotModel.feature_time <= end,
+                )
+            )
+            .order_by(NewsFeatureSnapshotModel.feature_time)
+        )
+        async with self._sessions() as session:
+            rows = tuple((await session.scalars(query)).all())
+        return tuple(_to_feature_snapshot(row) for row in rows)
+
     async def upsert_impact(self, value: RetrospectiveImpact) -> None:
         async with self._sessions.begin() as session:
             existing = await session.get(NewsMarketImpactModel, (value.news_event_id, value.asset))
@@ -394,6 +413,44 @@ def _feature_values(value: NewsFeatureSnapshot) -> dict[str, object]:
             key: str(item) if isinstance(item, Decimal) else item for key, item in features.items()
         },
     }
+
+
+def _to_feature_snapshot(value: NewsFeatureSnapshotModel) -> NewsFeatureSnapshot:
+    item = value.features
+    decimal_fields = (
+        "max_relevance_1h",
+        "mean_sentiment_15m",
+        "mean_sentiment_1h",
+        "mean_sentiment_6h",
+        "relevance_weighted_sentiment_1h",
+        "max_importance_1h",
+        "mean_importance_1h",
+        "max_novelty_1h",
+    )
+    converted = {
+        key: (Decimal(str(item[key])) if item.get(key) is not None else None)
+        for key in decimal_fields
+    }
+    return NewsFeatureSnapshot(
+        value.market,
+        _utc(value.feature_time),
+        _utc(value.generated_at),
+        value.feature_version,
+        tuple(value.analyzer_versions),
+        tuple(value.lookbacks_minutes),
+        int(item["news_count_15m"]),
+        int(item["news_count_1h"]),
+        int(item["news_count_6h"]),
+        converted["max_relevance_1h"],
+        converted["mean_sentiment_15m"],
+        converted["mean_sentiment_1h"],
+        converted["mean_sentiment_6h"],
+        converted["relevance_weighted_sentiment_1h"],
+        converted["max_importance_1h"],
+        converted["mean_importance_1h"],
+        converted["max_novelty_1h"],
+        int(item["breaking_news_count_15m"]),
+    )
 
 
 def _impact_values(value: RetrospectiveImpact) -> dict[str, object]:

@@ -13,3 +13,11 @@ Online news queries require both `received_at <= decision_time` and normalized e
 Retrospective impact is a separate research path. It may use observations after receipt and is exposed through `RetrospectiveResearchPort`, never the AiTrainer-facing online port. Its score indicates temporal association, not causality.
 
 Social engagement is time-varying. A feature at T selects only the latest engagement snapshot observed at or before T; later likes, replies, reposts, quotes, views, or bookmarks cannot leak backward. Online social features do not import social reaction or impact modules.
+
+## Unified ML datasets
+
+Candles are timestamped at open and enter a feature row only at `open + interval`. AiTrainer builds
+features before attaching future-return targets. All feature-group variants slice one canonical
+index and use chronological train/validation/test splits with a target-horizon purge. The leakage
+validator rejects future feature observations, retrospective impact/reaction names, target names,
+unordered rows, overlap and boundary crossings. See `docs/architecture/unified-ml-research.md`.

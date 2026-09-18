@@ -135,6 +135,40 @@ class IntelligenceEvent:
 
 
 @dataclass(frozen=True, slots=True)
+class MLModelSummary:
+    name: str
+    algorithm: str
+    features: str
+    rmse: float | None
+    mae: float | None
+    correlation: float | None
+    r_squared: float | None
+    spearman: float | None
+    directional_accuracy: float | None
+    feature_importance: tuple[tuple[str, float], ...] = ()
+    predictions: tuple[float, ...] = ()
+    actuals: tuple[float, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class MLResearchSummary:
+    comparison_id: str
+    dataset_id: str
+    market: str
+    interval: str
+    target: str
+    start_time: datetime
+    end_time: datetime
+    row_count: int | None
+    news_coverage: float | None
+    social_coverage: float | None
+    training_period: tuple[datetime, datetime] | None = None
+    validation_period: tuple[datetime, datetime] | None = None
+    test_period: tuple[datetime, datetime] | None = None
+    models: tuple[MLModelSummary, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class DashboardSnapshot:
     markets: tuple[MarketSummary, ...] = ()
     bots: tuple[BotSummary, ...] = ()
@@ -147,5 +181,6 @@ class DashboardSnapshot:
     portfolio_history: tuple[tuple[datetime, Decimal], ...] = ()
     news: tuple[IntelligenceEvent, ...] = ()
     social: tuple[IntelligenceEvent, ...] = ()
+    ml_research: MLResearchSummary | None = None
     connections: dict[str, ConnectionState] = field(default_factory=dict)
     errors: tuple[str, ...] = ()

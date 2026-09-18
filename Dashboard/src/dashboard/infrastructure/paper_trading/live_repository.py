@@ -1,10 +1,12 @@
 """Bounded public market query adapter; it never exposes order capabilities."""
 
 import asyncio
+import json
 import logging
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 from threading import Lock
 from typing import Any, Protocol, cast
 from uuid import UUID
@@ -31,6 +33,8 @@ from dashboard.application.view_models import (
     ExperimentSummary,
     IntelligenceEvent,
     MarketSummary,
+    MLModelSummary,
+    MLResearchSummary,
     PortfolioSummary,
     PositionSummary,
     SessionSummary,
@@ -82,6 +86,7 @@ class LiveDashboardRepository:
                 "Redis": ConnectionState.DISCONNECTED,
             },
         )
+        self._result_root = Path("experiments/results")
         self._lock = Lock()
 
     def snapshot(self) -> DashboardSnapshot:
@@ -127,6 +132,7 @@ class LiveDashboardRepository:
                 markets=markets,
                 connections=connections,
                 errors=errors,
+                ml_research=self._load_ml_research(),
                 **cast(Any, research_values),
                 **cast(Any, news_values),
                 **cast(Any, social_values),
@@ -146,6 +152,60 @@ class LiveDashboardRepository:
         with self._lock:
             self._snapshot = updated
         return updated
+
+    def _load_ml_research(self) -> MLResearchSummary | None:
+        paths = sorted(
+            self._result_root.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True
+        )
+        if not paths:
+            return None
+        try:
+            payload = json.loads(paths[0].read_text(encoding="utf-8"))
+            dataset = payload["dataset"]
+            models = tuple(
+                MLModelSummary(
+                    item["name"],
+                    item["algorithm"],
+                    item["feature_configuration"],
+                    item["metrics"]["rmse"],
+                    item["metrics"]["mae"],
+                    item["metrics"]["pearson"],
+                    item["metrics"]["r_squared"],
+                    item["metrics"]["spearman"],
+                    item["metrics"]["directional_accuracy"],
+                    tuple(
+                        sorted(
+                            item.get("feature_importance", {}).items(),
+                            key=lambda x: x[1],
+                            reverse=True,
+                        )[:10]
+                    ),
+                    _downsample(tuple(float(x) for x in item.get("predictions", []))),
+                    _downsample(tuple(float(x) for x in item.get("actuals", []))),
+                )
+                for item in payload.get("models", [])
+            )
+            validation = payload.get("validation") or {}
+            first = payload.get("models", [{}])[0]
+            return MLResearchSummary(
+                payload["comparison_id"],
+                dataset["dataset_id"],
+                dataset["market"],
+                dataset["interval"],
+                dataset["target_version"],
+                datetime.fromisoformat(dataset["start_time"]),
+                datetime.fromisoformat(dataset["end_time"]),
+                validation.get("row_count"),
+                validation.get("news_coverage"),
+                validation.get("social_coverage"),
+                _date_period(first.get("training_period")),
+                _date_period(first.get("validation_period")),
+                _date_period(first.get("test_period")),
+                models,
+            )
+        except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+            logger.exception("dashboard_ml_research_load_failed")
+            return None
 
     async def _fetch_social(self) -> tuple[IntelligenceEvent, ...]:
         assert self._social is not None
@@ -404,3 +464,16 @@ class LiveDashboardRepository:
                 portfolio_history=tuple((item.timestamp, item.portfolio_value) for item in history),
             )
         return result
+
+
+def _date_period(value: object) -> tuple[datetime, datetime] | None:
+    if not isinstance(value, list) or len(value) != 2:
+        return None
+    return datetime.fromisoformat(str(value[0])), datetime.fromisoformat(str(value[1]))
+
+
+def _downsample(values: tuple[float, ...], limit: int = 1_000) -> tuple[float, ...]:
+    if len(values) <= limit:
+        return values
+    step = max(1, len(values) // limit)
+    return values[::step][:limit]

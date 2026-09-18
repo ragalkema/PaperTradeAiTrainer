@@ -261,6 +261,24 @@ class SqlAlchemySocialRepository:
                 )
             )
 
+    async def social_feature_snapshots(
+        self, market: str, start: datetime, end: datetime
+    ) -> tuple[SocialFeatureSnapshot, ...]:
+        query = (
+            select(SocialFeatureSnapshotModel)
+            .where(
+                and_(
+                    SocialFeatureSnapshotModel.market == market,
+                    SocialFeatureSnapshotModel.feature_time >= start,
+                    SocialFeatureSnapshotModel.feature_time <= end,
+                )
+            )
+            .order_by(SocialFeatureSnapshotModel.feature_time)
+        )
+        async with self._sessions() as session:
+            rows = tuple((await session.scalars(query)).all())
+        return tuple(_social_feature(row) for row in rows)
+
     async def add_social_reaction(self, value: SocialMarketReaction) -> None:
         values = {field.name: getattr(value, field.name) for field in fields(value)}
         async with self._sessions.begin() as session:
@@ -413,4 +431,35 @@ def _engagement(x: SocialEngagementSnapshotModel) -> SocialEngagementSnapshot:
         x.quotes,
         x.bookmarks,
         x.views,
+    )
+
+
+def _social_feature(value: SocialFeatureSnapshotModel) -> SocialFeatureSnapshot:
+    item = value.features
+
+    def decimal(name: str) -> Decimal | None:
+        raw = item.get(name)
+        return Decimal(str(raw)) if raw is not None else None
+
+    return SocialFeatureSnapshot(
+        value.market,
+        _utc(value.feature_time),
+        _utc(value.generated_at),
+        value.feature_version,
+        tuple(value.analyzer_versions),
+        int(item["post_count_15m"]),
+        int(item["post_count_1h"]),
+        int(item["post_count_6h"]),
+        int(item["unique_accounts_1h"]),
+        decimal("mean_sentiment_15m"),
+        decimal("mean_sentiment_1h"),
+        decimal("mean_sentiment_6h"),
+        decimal("weighted_sentiment_1h"),
+        decimal("max_relevance_1h"),
+        decimal("max_importance_1h"),
+        decimal("max_novelty_1h"),
+        int(item["high_influence_post_count_1h"]),
+        int(item["breaking_post_count_15m"]),
+        decimal("social_activity_zscore"),
+        decimal("engagement_velocity_1h"),
     )
