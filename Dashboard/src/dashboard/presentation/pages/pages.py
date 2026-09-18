@@ -281,6 +281,18 @@ class DashboardPages:
             ["Time", "Bot", "Market", "Side", "Price", "P&L"],
             "No paper trades available.",
         )
+        self.positions = TablePage(
+            "Positions",
+            "Current virtual spot positions",
+            ["Market", "Side", "Quantity", "Average entry", "Current", "Unrealized P&L"],
+            "No open paper positions available.",
+        )
+        self.decisions = TablePage(
+            "Bot Decisions",
+            "Point-in-time inputs captured without future information",
+            ["Time", "Bot", "Market", "Action", "Requested size", "Confidence", "Price"],
+            "No recorded bot decisions available.",
+        )
         self.data = SystemPage()
         self.training = self._training_page()
         self.system = SystemPage()
@@ -293,6 +305,8 @@ class DashboardPages:
             ("News", self.news),
             ("Social", self.social),
             ("Trades", self.trades),
+            ("Positions", self.positions),
+            ("Decisions", self.decisions),
             ("Data", self.data),
             ("Training", self.training),
             ("System", self.system),
@@ -330,6 +344,9 @@ class DashboardPages:
         self._update_trades(snapshot)
         self._update_intelligence(self.news, snapshot.news)
         self._update_intelligence(self.social, snapshot.social)
+        self._update_experiments(snapshot)
+        self._update_positions(snapshot)
+        self._update_decisions(snapshot)
 
     def _update_bots(self, snapshot: DashboardSnapshot) -> None:
         rows = [
@@ -360,6 +377,50 @@ class DashboardPages:
             for trade in snapshot.trades
         ]
         self._set_rows(self.trades, rows)
+
+    def _update_experiments(self, snapshot: DashboardSnapshot) -> None:
+        rows = [
+            [
+                item.name,
+                ", ".join(item.markets),
+                f"{item.start_period:%Y-%m-%d} — {item.end_period:%Y-%m-%d}",
+                "See participants",
+                format_money(item.starting_balance),
+                item.status.upper(),
+                item.created_at.astimezone().strftime("%Y-%m-%d %H:%M"),
+            ]
+            for item in snapshot.experiments
+        ]
+        self._set_rows(self.experiments, rows)
+
+    def _update_positions(self, snapshot: DashboardSnapshot) -> None:
+        rows = [
+            [
+                item.market,
+                item.side,
+                f"{item.quantity:f}",
+                format_money(item.average_entry_price),
+                format_money(item.current_price),
+                format_money(item.unrealized_pnl),
+            ]
+            for item in snapshot.positions
+        ]
+        self._set_rows(self.positions, rows)
+
+    def _update_decisions(self, snapshot: DashboardSnapshot) -> None:
+        rows = [
+            [
+                item.timestamp.astimezone().strftime("%Y-%m-%d %H:%M:%S"),
+                item.bot,
+                item.market,
+                item.action.upper(),
+                f"{item.requested_size:f}",
+                format_score(item.confidence),
+                format_money(item.price),
+            ]
+            for item in snapshot.decisions
+        ]
+        self._set_rows(self.decisions, rows)
 
     def _update_intelligence(self, page: TablePage, events: tuple[IntelligenceEvent, ...]) -> None:
         rows = [

@@ -4,6 +4,8 @@ import logging
 import sys
 from pathlib import Path
 
+from paper_trading.infrastructure.persistence import SqlAlchemyResearchRepository
+from paper_trading.infrastructure.persistence.session import async_session_factory
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
@@ -26,7 +28,8 @@ def configure_logging() -> None:
 
 
 def create_window() -> MainWindow:
-    repository = LiveDashboardRepository()
+    research = SqlAlchemyResearchRepository(async_session_factory)
+    repository = LiveDashboardRepository(research=research)
     return MainWindow(repository.refresh, repository.snapshot())
 
 

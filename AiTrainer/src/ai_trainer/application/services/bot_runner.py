@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from shared.contracts import MarketState, PerformanceMetrics
 
-from ai_trainer.application.ports import PaperSessionPort, TradingBot
+from ai_trainer.application.ports import PaperSessionPort, RunObserver, TradingBot
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,7 @@ class MultiBotRunner:
         self,
         bots: Mapping[str, TradingBot],
         session_factory: Callable[[], PaperSessionPort],
+        observer: RunObserver | None = None,
     ) -> None:
         if not bots:
             raise ValueError("at least one bot is required")
@@ -34,6 +35,7 @@ class MultiBotRunner:
         self._runtimes = {
             name: BotRuntime(bot=bot, session=session_factory()) for name, bot in bots.items()
         }
+        self._observer = observer
 
     def run(self, states: Iterable[MarketState]) -> dict[str, PerformanceMetrics]:
         previous = None
@@ -52,6 +54,8 @@ class MultiBotRunner:
                 )
                 result = runtime.session.execute(action)
                 runtime.bot.on_trade_result(result)
+                if self._observer is not None:
+                    self._observer.on_step(name, state, action, result, runtime.session.portfolio())
         if processed == 0:
             raise ValueError("at least one market state is required")
         return {name: runtime.session.metrics() for name, runtime in self._runtimes.items()}

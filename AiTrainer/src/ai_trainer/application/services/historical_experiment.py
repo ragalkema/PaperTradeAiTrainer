@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from shared.contracts import Candle, MarketState
 
-from ai_trainer.application.ports import PaperSessionPort, TradingBot
+from ai_trainer.application.ports import PaperSessionPort, RunObserver, TradingBot
 from ai_trainer.application.services.bot_runner import MultiBotRunner
 from ai_trainer.domain.entities import HistoricalExperimentConfig, HistoricalExperimentResult
 
@@ -20,9 +20,10 @@ class HistoricalExperimentRunner:
         self,
         bots: Mapping[str, TradingBot],
         session_factory: Callable[[], PaperSessionPort],
+        observer: RunObserver | None = None,
     ) -> None:
         self._bots = dict(bots)
-        self._runner = MultiBotRunner(self._bots, session_factory)
+        self._runner = MultiBotRunner(self._bots, session_factory, observer)
 
     def run(
         self,

@@ -67,6 +67,50 @@ class TradeSummary:
 
 
 @dataclass(frozen=True, slots=True)
+class SessionSummary:
+    session_id: str
+    name: str
+    status: str
+    started_at: datetime | None
+    markets: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class PositionSummary:
+    market: str
+    side: str
+    quantity: Decimal
+    average_entry_price: Decimal
+    current_price: Decimal
+    unrealized_pnl: Decimal
+
+
+@dataclass(frozen=True, slots=True)
+class DecisionSummary:
+    timestamp: datetime
+    bot: str
+    market: str
+    action: str
+    requested_size: Decimal
+    confidence: Decimal | None
+    price: Decimal
+    portfolio_value: Decimal
+    executed_trade_id: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class ExperimentSummary:
+    experiment_id: str
+    name: str
+    status: str
+    markets: tuple[str, ...]
+    start_period: datetime
+    end_period: datetime
+    starting_balance: Decimal
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class IntelligenceEvent:
     event_id: str
     kind: str
@@ -88,6 +132,11 @@ class DashboardSnapshot:
     bots: tuple[BotSummary, ...] = ()
     portfolio: PortfolioSummary = field(default_factory=PortfolioSummary)
     trades: tuple[TradeSummary, ...] = ()
+    sessions: tuple[SessionSummary, ...] = ()
+    positions: tuple[PositionSummary, ...] = ()
+    decisions: tuple[DecisionSummary, ...] = ()
+    experiments: tuple[ExperimentSummary, ...] = ()
+    portfolio_history: tuple[tuple[datetime, Decimal], ...] = ()
     news: tuple[IntelligenceEvent, ...] = ()
     social: tuple[IntelligenceEvent, ...] = ()
     connections: dict[str, ConnectionState] = field(default_factory=dict)

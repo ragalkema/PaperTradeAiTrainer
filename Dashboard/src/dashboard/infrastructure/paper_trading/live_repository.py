@@ -5,14 +5,23 @@ import logging
 from dataclasses import replace
 from decimal import Decimal
 from threading import Lock
+from typing import Any, cast
 
+from paper_trading.application.ports import ResearchQueryPort
 from paper_trading.infrastructure.bitvavo import BitvavoMarketDataAdapter
 from shared.contracts import MarketSymbol
 
 from dashboard.application.view_models import (
+    BotSummary,
     ConnectionState,
     DashboardSnapshot,
+    DecisionSummary,
+    ExperimentSummary,
     MarketSummary,
+    PortfolioSummary,
+    PositionSummary,
+    SessionSummary,
+    TradeSummary,
 )
 
 logger = logging.getLogger(__name__)
@@ -21,8 +30,13 @@ logger = logging.getLogger(__name__)
 class LiveDashboardRepository:
     """Thread-safe latest snapshot backed only by public Bitvavo reads."""
 
-    def __init__(self, markets: tuple[str, ...] = ("BTC-EUR", "ETH-EUR", "SOL-EUR")) -> None:
+    def __init__(
+        self,
+        markets: tuple[str, ...] = ("BTC-EUR", "ETH-EUR", "SOL-EUR"),
+        research: ResearchQueryPort | None = None,
+    ) -> None:
         self._markets = markets
+        self._research = research
         initial = tuple(
             MarketSummary(market, state=ConnectionState.CONNECTING) for market in markets
         )
@@ -48,7 +62,23 @@ class LiveDashboardRepository:
             markets = asyncio.run(self._fetch())
             connections = dict(self.snapshot().connections)
             connections["Bitvavo"] = ConnectionState.CONNECTED
-            updated = replace(self.snapshot(), markets=markets, connections=connections, errors=())
+            research_values: dict[str, object] = {}
+            errors: tuple[str, ...] = ()
+            if self._research:
+                try:
+                    research_values = asyncio.run(self._fetch_research())
+                    connections["PostgreSQL"] = ConnectionState.CONNECTED
+                except Exception:
+                    logger.exception("dashboard_research_refresh_failed")
+                    connections["PostgreSQL"] = ConnectionState.ERROR
+                    errors = ("Research database unavailable. Market data remains live.",)
+            updated = replace(
+                self.snapshot(),
+                markets=markets,
+                connections=connections,
+                errors=errors,
+                **cast(Any, research_values),
+            )
         except Exception:  # UI boundary converts details to logs and safe state.
             logger.exception("dashboard_market_refresh_failed")
             previous = self.snapshot()
@@ -104,3 +134,131 @@ class LiveDashboardRepository:
                 )
 
             return tuple(await asyncio.gather(*(one(name) for name in self._markets)))
+
+    async def _fetch_research(self) -> dict[str, object]:
+        assert self._research is not None
+        sessions, experiments = await asyncio.gather(
+            self._research.active_sessions(), self._research.experiments()
+        )
+        result: dict[str, object] = {
+            "sessions": tuple(
+                SessionSummary(
+                    str(item.session_id),
+                    item.name,
+                    item.status.value,
+                    item.started_at,
+                    tuple(str(market) for market in item.markets),
+                )
+                for item in sessions
+            ),
+            "experiments": tuple(
+                ExperimentSummary(
+                    str(item.experiment_id),
+                    item.name,
+                    item.status.value,
+                    tuple(str(market) for market in item.markets),
+                    item.start_period,
+                    item.end_period,
+                    item.starting_balance,
+                    item.created_at,
+                )
+                for item in experiments
+            ),
+        }
+        if not sessions:
+            return result
+        selected = sessions[0]
+        participants = await self._research.session_bots(selected.session_id)
+        definitions = await self._research.bot_definitions(
+            tuple(item.bot_id for item in participants)
+        )
+        definitions_by_id = {item.bot_id: item for item in definitions}
+        portfolios = await asyncio.gather(
+            *(self._research.current_portfolio(item.session_bot_id) for item in participants)
+        )
+        performances = await asyncio.gather(
+            *(self._research.performance(item.session_bot_id) for item in participants)
+        )
+        bots = []
+        for participant, portfolio, performance in zip(
+            participants, portfolios, performances, strict=True
+        ):
+            definition = definitions_by_id.get(participant.bot_id)
+            bots.append(
+                BotSummary(
+                    str(participant.session_bot_id),
+                    definition.name if definition else str(participant.bot_id),
+                    definition.bot_type if definition else "Unknown",
+                    definition.version if definition else None,
+                    participant.status.value.upper(),
+                    portfolio.portfolio_value if portfolio else None,
+                    performance.percentage_return if performance else None,
+                    performance.maximum_drawdown if performance else None,
+                    performance.trade_count if performance else None,
+                    performance.fees_paid if performance else None,
+                )
+            )
+        trades = await self._research.recent_trades(selected.session_id)
+        names = {
+            participant.session_bot_id: (
+                definitions_by_id[participant.bot_id].name
+                if participant.bot_id in definitions_by_id
+                else str(participant.bot_id)
+            )
+            for participant in participants
+        }
+        total_capital = sum(
+            (item.portfolio_value for item in portfolios if item is not None), Decimal("0")
+        )
+        total_start = sum((item.starting_balance for item in participants), Decimal("0"))
+        result.update(
+            bots=tuple(bots),
+            portfolio=PortfolioSummary(total_capital, total_capital - total_start),
+            trades=tuple(
+                TradeSummary(
+                    item.executed_at,
+                    names.get(item.session_bot_id, "Unknown"),
+                    str(item.market),
+                    item.side.value,
+                    item.execution_price,
+                    item.realized_pnl,
+                )
+                for item in trades
+            ),
+        )
+        if participants:
+            participant = participants[0]
+            positions, decisions, history = await asyncio.gather(
+                self._research.open_positions(participant.session_bot_id),
+                self._research.decisions(participant.session_bot_id),
+                self._research.portfolio_history(participant.session_bot_id),
+            )
+            result.update(
+                positions=tuple(
+                    PositionSummary(
+                        str(item.market),
+                        item.side,
+                        item.quantity,
+                        item.average_entry_price,
+                        item.current_price,
+                        item.unrealized_pnl,
+                    )
+                    for item in positions
+                ),
+                decisions=tuple(
+                    DecisionSummary(
+                        item.timestamp,
+                        names.get(item.session_bot_id, "Unknown"),
+                        str(item.market),
+                        item.action.value,
+                        item.requested_size,
+                        item.confidence,
+                        item.context.price,
+                        item.context.portfolio_value,
+                        str(item.executed_trade_id) if item.executed_trade_id else None,
+                    )
+                    for item in decisions
+                ),
+                portfolio_history=tuple((item.timestamp, item.portfolio_value) for item in history),
+            )
+        return result

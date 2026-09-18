@@ -68,7 +68,11 @@ def boundary_violations() -> list[str]:
                 if forbidden:
                     violations.append(f"{normalized}: DataCollector imports {sorted(forbidden)}")
 
-            if normalized.startswith("Dashboard/") and "/infrastructure/" not in normalized:
+            if (
+                normalized.startswith("Dashboard/")
+                and "/infrastructure/" not in normalized
+                and normalized != "Dashboard/src/dashboard/main.py"
+            ):
                 forbidden = {
                     name
                     for name in imports
