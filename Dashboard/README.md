@@ -15,8 +15,10 @@ execution, experiment calculations, collection, or model logic.
 - Deterministic Top 5 intelligence ranking. Scores are consumed, never invented, and described
   as estimates/associations.
 
-Bot results, positions, trades, experiments, news, social events, training runs, and database
-telemetry remain unavailable until their owners provide query data. Demo values are never used.
+When PostgreSQL is migrated and contains research runs, Dashboard now queries real active-session
+bots, aggregate virtual capital/P&L, positions, trades, decisions, equity history, performance,
+and experiment metadata. News, social events, training runs, and detailed database telemetry
+remain unavailable. Demo values are never used.
 
 ## Run and test
 

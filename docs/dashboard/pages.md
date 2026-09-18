@@ -2,7 +2,8 @@
 
 - **Overview**: live market status plus aggregate values when supplied.
 - **Markets**: current public price/book and bounded candle history.
-- **Bots / Experiments / Trades**: empty until persisted query data exists.
+- **Bots / Experiments / Trades**: populated from PaperTrading persisted-query ports.
+- **Positions / Decisions**: current spot positions and captured point-in-time bot decisions.
 - **News / Social**: empty until normalized DataCollector output exists.
 - **Data / System**: actual adapter states; unavailable telemetry remains `N/A`.
 - **Training**: future boundary with controls disabled.

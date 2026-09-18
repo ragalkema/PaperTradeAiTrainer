@@ -33,6 +33,24 @@ Interactive commands are `price BTC-EUR`, `buy BTC-EUR 100`, `sell BTC-EUR 0.001
 
 Raw events are appended under `data/raw/market/`. Normalized candles go to `data/normalized/market/candles.jsonl`. Both locations are ignored by Git.
 
+## Persistent research runs
+
+Apply the PostgreSQL schema and persist a reproducible baseline experiment:
+
+```powershell
+docker compose up -d postgres
+alembic upgrade head
+python scripts/run_experiment.py BTC-EUR 1h --limit 100 --persist --name "BTC baselines"
+```
+
+The experiment owns one paper session with an independent `SessionBot` and portfolio for each
+bot. Executed trades, throttled equity snapshots, positions, and meaningful decisions are
+append-oriented. Dashboard reads them through bounded application query ports rather than SQL.
+
+Decision context is captured at decision time. A context market timestamp later than its
+decision is rejected; contexts must never be reconstructed later from future observations.
+HOLD persistence is disabled by default and can be sampled separately from portfolio snapshots.
+
 ## Execution model
 
 BUY executes at `ask × (1 + slippage)` and deducts requested value plus fee. SELL executes at `bid × (1 - slippage)` and credits proceeds minus fee. There are no partial fills, depth effects, limit orders, leverage, or shorts yet.
