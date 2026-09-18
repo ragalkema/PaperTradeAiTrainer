@@ -3,10 +3,12 @@
 import asyncio
 import logging
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from threading import Lock
 from typing import Any, cast
 
+from data_collector.application.ports import NewsQueryPort
 from paper_trading.application.ports import ResearchQueryPort
 from paper_trading.infrastructure.bitvavo import BitvavoMarketDataAdapter
 from shared.contracts import MarketSymbol
@@ -17,6 +19,7 @@ from dashboard.application.view_models import (
     DashboardSnapshot,
     DecisionSummary,
     ExperimentSummary,
+    IntelligenceEvent,
     MarketSummary,
     PortfolioSummary,
     PositionSummary,
@@ -34,9 +37,11 @@ class LiveDashboardRepository:
         self,
         markets: tuple[str, ...] = ("BTC-EUR", "ETH-EUR", "SOL-EUR"),
         research: ResearchQueryPort | None = None,
+        news: NewsQueryPort | None = None,
     ) -> None:
         self._markets = markets
         self._research = research
+        self._news = news
         initial = tuple(
             MarketSummary(market, state=ConnectionState.CONNECTING) for market in markets
         )
@@ -44,7 +49,7 @@ class LiveDashboardRepository:
             markets=initial,
             connections={
                 "Bitvavo": ConnectionState.CONNECTING,
-                "News": ConnectionState.DISABLED,
+                "News": ConnectionState.CONNECTING if news else ConnectionState.DISABLED,
                 "Social/X": ConnectionState.DISABLED,
                 "PostgreSQL": ConnectionState.DISCONNECTED,
                 "Redis": ConnectionState.DISCONNECTED,
@@ -72,12 +77,22 @@ class LiveDashboardRepository:
                     logger.exception("dashboard_research_refresh_failed")
                     connections["PostgreSQL"] = ConnectionState.ERROR
                     errors = ("Research database unavailable. Market data remains live.",)
+            news_values: dict[str, object] = {}
+            if self._news:
+                try:
+                    news_values = {"news": asyncio.run(self._fetch_news())}
+                    connections["News"] = ConnectionState.CONNECTED
+                except Exception:
+                    logger.exception("dashboard_news_refresh_failed")
+                    connections["News"] = ConnectionState.ERROR
+                    errors += ("News database unavailable. Other data remains live.",)
             updated = replace(
                 self.snapshot(),
                 markets=markets,
                 connections=connections,
                 errors=errors,
                 **cast(Any, research_values),
+                **cast(Any, news_values),
             )
         except Exception:  # UI boundary converts details to logs and safe state.
             logger.exception("dashboard_market_refresh_failed")
@@ -94,6 +109,24 @@ class LiveDashboardRepository:
         with self._lock:
             self._snapshot = updated
         return updated
+
+    async def _fetch_news(self) -> tuple[IntelligenceEvent, ...]:
+        assert self._news is not None
+        events = await self._news.recent_news(since=datetime.now(UTC) - timedelta(hours=24))
+        return tuple(
+            IntelligenceEvent(
+                event_id=str(item.news_event_id),
+                kind="news",
+                occurred_at=item.received_at,
+                title=item.title,
+                source=item.source_name,
+                assets=item.mentioned_assets,
+                sentiment=item.sentiment,
+                relevance=max(item.asset_relevance.values(), default=None),
+                importance=item.importance,
+            )
+            for item in events
+        )
 
     async def _fetch(self) -> tuple[MarketSummary, ...]:
         async with BitvavoMarketDataAdapter(timeout_seconds=7) as adapter:

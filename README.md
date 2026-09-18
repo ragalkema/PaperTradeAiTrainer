@@ -9,7 +9,7 @@ A modular research platform for collecting crypto context, simulating virtual tr
 ```mermaid
 flowchart LR
     BV[Bitvavo public market data]
-    NEWS[Crypto news - future]
+    NEWS[Structured crypto news]
     SOCIAL[Social media - future]
     NEWS --> DC[DataCollector]
     SOCIAL --> DC
@@ -25,7 +25,7 @@ flowchart LR
 
 The repository is one deployable-by-choice monorepo with strong logical boundaries:
 
-- **DataCollector** asks what is happening outside the market. It will acquire and normalize news/social data while preserving immutable raw input.
+- **DataCollector** acquires and normalizes structured crypto news while preserving immutable raw input; social collection remains future work.
 - **PaperTrading** retrieves public Bitvavo market data and deterministically simulates spot BUY/SELL/HOLD with independent virtual portfolios.
 - **AiTrainer** currently supplies three baseline bots and reproducible historical comparison; future ML/RL training stays here.
 - **shared** defines the small, framework-neutral language those projects use to communicate.
@@ -85,6 +85,9 @@ python -m paper_trading trade
 
 # Three independent baseline bots on identical historical candles
 python scripts/run_experiment.py BTC-EUR 1h --limit 100 --seed 42
+
+# One pass over configured public RSS news feeds (after database migration)
+python -m data_collector news-once
 ```
 
 See [PaperTrading](PaperTrading/README.md), [AiTrainer](AiTrainer/README.md), and the [MVP execution notes](docs/development/paper-trading.md).
