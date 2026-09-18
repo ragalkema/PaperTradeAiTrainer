@@ -7,6 +7,7 @@ SOURCE_ROOTS = (
     Path("DataCollector/src"),
     Path("PaperTrading/src"),
     Path("AiTrainer/src"),
+    Path("Dashboard/src"),
     Path("shared/src"),
 )
 
@@ -66,6 +67,17 @@ def boundary_violations() -> list[str]:
                 forbidden = {name for name in imports if name.startswith("ai_trainer")}
                 if forbidden:
                     violations.append(f"{normalized}: DataCollector imports {sorted(forbidden)}")
+
+            if normalized.startswith("Dashboard/") and "/infrastructure/" not in normalized:
+                forbidden = {
+                    name
+                    for name in imports
+                    if name.startswith(("paper_trading.", "ai_trainer.", "data_collector."))
+                }
+                if forbidden:
+                    violations.append(
+                        f"{normalized}: Dashboard inner layer imports internals {sorted(forbidden)}"
+                    )
 
             if "/bots/" in normalized:
                 forbidden = {name for name in imports if "bitvavo" in name.lower()}

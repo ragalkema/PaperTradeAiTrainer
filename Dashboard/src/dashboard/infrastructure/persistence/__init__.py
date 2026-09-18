@@ -1,0 +1,1 @@
+"""Dashboard preference persistence boundary."""
