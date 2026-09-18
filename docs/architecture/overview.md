@@ -1,6 +1,7 @@
 # Architecture overview
 
-PaperTradeAiTrainer is a modular monorepo with four Python package boundaries:
+PaperTradeAiTrainer is a modular monorepo with five Python package boundaries. Dashboard is
+the outer observer/controller; it consumes bounded read ports without becoming a domain layer.
 
 ```text
 DataCollector ──normalized text events──┐
@@ -20,3 +21,4 @@ Dependency rules:
 6. Domain logic is testable without internet, databases, provider APIs, or GPUs.
 7. AI agents cannot execute real trades.
 8. Raw historical data is immutable.
+9. Dashboard never owns trading, collection, or AI business logic.

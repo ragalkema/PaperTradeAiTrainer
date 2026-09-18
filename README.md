@@ -29,7 +29,8 @@ The repository is one deployable-by-choice monorepo with strong logical boundari
 - **PaperTrading** retrieves public Bitvavo market data and deterministically simulates spot BUY/SELL/HOLD with independent virtual portfolios.
 - **AiTrainer** currently supplies three baseline bots and reproducible historical comparison; future ML/RL training stays here.
 - **shared** defines the small, framework-neutral language those projects use to communicate.
-- **frontend** remains the future React monitoring dashboard.
+- **Dashboard** is the native PySide6 observer/controller and primary interface.
+- **frontend** remains an archived web-interface foundation rather than the primary UI.
 
 Each Python project follows pragmatic Clean Architecture: interfaces and infrastructure depend on application/domain, while application defines ports and domain remains framework-free. Projects do not import one another's internals. See [architecture overview](docs/architecture/overview.md).
 
@@ -47,6 +48,7 @@ models/           ignored model artifacts
 experiments/      versioned configs; ignored results/reports
 database/         Alembic migration foundation
 frontend/         React/TypeScript/Vite dashboard foundation
+Dashboard/        native PySide6 research dashboard and Windows build
 docs/             architecture, data, and development guidance
 ```
 
@@ -69,7 +71,7 @@ Run the PaperTrading status API:
 uvicorn paper_trading.interfaces.api:app --reload
 ```
 
-`GET /health` returns `{"status":"healthy","trading_mode":"paper"}`. Run the dashboard with `npm run dev --prefix frontend`.
+`GET /health` returns `{"status":"healthy","trading_mode":"paper"}`. Run the native dashboard with `.\scripts\run-dashboard.ps1`.
 
 Use the functional MVP:
 
