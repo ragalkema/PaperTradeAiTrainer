@@ -6,7 +6,7 @@ python -m pip install -e ".[build]"
 if ($OneFile) {
     python -m PyInstaller --noconfirm --clean --windowed --onefile `
         --name PaperTradeAiTrainer `
-        --paths Dashboard/src --paths PaperTrading/src --paths shared/src `
+        --paths Dashboard/src --paths DataCollector/src --paths PaperTrading/src --paths shared/src `
         Dashboard/src/dashboard/main.py
 } else {
     python -m PyInstaller --noconfirm --clean Dashboard/PaperTradeAiTrainer.spec

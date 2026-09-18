@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -78,12 +79,25 @@ class OverviewPage(QWidget):
             EmptyState("No bot results", "Run or load an experiment to compare bots.")
         )
         intelligence = Card("Top market impact · last 24 hours")
-        intelligence.content.addWidget(
-            EmptyState("No intelligence collected", "News and social collectors are not connected.")
-        )
+        self.impact_table = _table(["Headline", "Asset", "Impact", "Maturity"])
+        intelligence.content.addWidget(self.impact_table)
         lower.addWidget(bots, 3)
         lower.addWidget(intelligence, 2)
         layout.addLayout(lower, 1)
+        sentiment = Card("News sentiment · analyzed last 24 hours")
+        self.sentiment_summary = QLabel("Insufficient analyzed news")
+        sentiment.content.addWidget(self.sentiment_summary)
+        layout.addWidget(sentiment)
+        online_rankings = QHBoxLayout()
+        important = Card("Most important news · ONLINE")
+        self.importance_table = _table(["Headline", "Asset", "Importance"])
+        important.content.addWidget(self.importance_table)
+        relevant = Card("Most relevant · ONLINE")
+        self.relevance_table = _table(["Headline", "Asset", "Relevance"])
+        relevant.content.addWidget(self.relevance_table)
+        online_rankings.addWidget(important)
+        online_rankings.addWidget(relevant)
+        layout.addLayout(online_rankings)
 
     def update_snapshot(self, snapshot: DashboardSnapshot) -> None:
         self.capital.set_metric(
@@ -111,6 +125,43 @@ class OverviewPage(QWidget):
                     format_money(market.current_price),
                     f"{format_percent(market.change_24h)} 24h · {market.state}",
                 )
+        impact_events = DashboardService.top_intelligence(snapshot.news)
+        self.impact_table.setRowCount(len(impact_events))
+        for row, impact_event in enumerate(impact_events):
+            impact_values = (
+                impact_event.title,
+                ", ".join(impact_event.assets),
+                format_score(impact_event.estimated_impact),
+                impact_event.impact_maturity or "Pending",
+            )
+            for column, value in enumerate(impact_values):
+                self.impact_table.setItem(row, column, QTableWidgetItem(value))
+        summaries = []
+        for asset in ("BTC", "ETH", "SOL"):
+            sentiment_values = [
+                item.sentiment
+                for item in snapshot.news
+                if asset in item.assets and item.sentiment is not None
+            ]
+            if sentiment_values:
+                mean = sum(sentiment_values, start=sentiment_values[0] * 0) / len(sentiment_values)
+                summaries.append(f"{asset} {mean:+.2f} (n={len(sentiment_values)})")
+        self.sentiment_summary.setText(
+            "  ·  ".join(summaries) if summaries else "Insufficient analyzed news"
+        )
+        for table, ranked_events, field in (
+            (self.importance_table, DashboardService.top_importance(snapshot.news), "importance"),
+            (self.relevance_table, DashboardService.top_relevance(snapshot.news), "relevance"),
+        ):
+            table.setRowCount(len(ranked_events))
+            for row, ranked_event in enumerate(ranked_events):
+                ranking_values = (
+                    ranked_event.title,
+                    ", ".join(ranked_event.assets),
+                    format_score(getattr(ranked_event, field)),
+                )
+                for column, value in enumerate(ranking_values):
+                    table.setItem(row, column, QTableWidgetItem(value))
 
 
 class MarketsPage(QWidget):
@@ -173,6 +224,7 @@ class TablePage(QWidget):
     def __init__(self, title: str, subtitle: str, headers: list[str], empty: str) -> None:
         super().__init__()
         layout = QVBoxLayout(self)
+        self.content_layout = layout
         layout.setContentsMargins(24, 20, 24, 24)
         layout.addWidget(SectionTitle(title, subtitle))
         self.table = _table(headers)
@@ -265,10 +317,32 @@ class DashboardPages:
                 "Assets",
                 "Sentiment",
                 "Relevance",
-                "Estimated impact",
+                "Importance · ONLINE",
+                "Event type · ONLINE",
+                "Novelty · ONLINE",
+                "Impact · RETROSPECTIVE",
+                "Maturity",
             ],
             "No news collected yet. Dashboard never scrapes sources directly.",
         )
+        news_filters = QWidget()
+        news_filter_layout = QHBoxLayout(news_filters)
+        self.news_asset_filter = QComboBox()
+        self.news_asset_filter.addItems(["All assets", "BTC", "ETH", "SOL"])
+        self.news_type_filter = QComboBox()
+        self.news_type_filter.addItems(["All event types"])
+        self.news_sentiment_filter = QComboBox()
+        self.news_sentiment_filter.addItems(["All sentiment", "Positive", "Neutral", "Negative"])
+        for label, control in (
+            ("Asset", self.news_asset_filter),
+            ("Event type", self.news_type_filter),
+            ("Sentiment", self.news_sentiment_filter),
+        ):
+            news_filter_layout.addWidget(QLabel(label))
+            news_filter_layout.addWidget(control)
+        news_filter_layout.addStretch()
+        self.news.content_layout.insertWidget(1, news_filters)
+        self.news.table.cellDoubleClicked.connect(self._show_news_detail)
         self.social = TablePage(
             "Social Intelligence",
             "Normalized collector output only",
@@ -312,6 +386,10 @@ class DashboardPages:
             ("System", self.system),
             ("Settings", self.settings),
         ]
+        self._snapshot = DashboardSnapshot()
+        self._visible_news: tuple[IntelligenceEvent, ...] = ()
+        for control in (self.news_asset_filter, self.news_type_filter, self.news_sentiment_filter):
+            control.currentTextChanged.connect(lambda _value: self._update_news())
 
     @staticmethod
     def _training_page() -> QWidget:
@@ -336,17 +414,74 @@ class DashboardPages:
         return page
 
     def update_snapshot(self, snapshot: DashboardSnapshot) -> None:
+        self._snapshot = snapshot
         self.overview.update_snapshot(snapshot)
         self.markets.update_snapshot(snapshot)
         self.data.update_snapshot(snapshot)
         self.system.update_snapshot(snapshot)
         self._update_bots(snapshot)
         self._update_trades(snapshot)
-        self._update_intelligence(self.news, snapshot.news)
+        known_types = sorted({item.event_type for item in snapshot.news if item.event_type})
+        current_type = self.news_type_filter.currentText()
+        self.news_type_filter.blockSignals(True)
+        self.news_type_filter.clear()
+        self.news_type_filter.addItems(["All event types", *known_types])
+        self.news_type_filter.setCurrentText(
+            current_type if current_type in known_types else "All event types"
+        )
+        self.news_type_filter.blockSignals(False)
+        self._update_news()
         self._update_intelligence(self.social, snapshot.social)
         self._update_experiments(snapshot)
         self._update_positions(snapshot)
         self._update_decisions(snapshot)
+
+    def _update_news(self) -> None:
+        asset = self.news_asset_filter.currentText()
+        event_type = self.news_type_filter.currentText()
+        sentiment = self.news_sentiment_filter.currentText()
+        events = self._snapshot.news
+        if asset != "All assets":
+            events = tuple(item for item in events if asset in item.assets)
+        if event_type != "All event types":
+            events = tuple(item for item in events if item.event_type == event_type)
+        if sentiment == "Positive":
+            events = tuple(
+                item for item in events if item.sentiment is not None and item.sentiment > 0
+            )
+        elif sentiment == "Negative":
+            events = tuple(
+                item for item in events if item.sentiment is not None and item.sentiment < 0
+            )
+        elif sentiment == "Neutral":
+            events = tuple(item for item in events if item.sentiment == 0)
+        self._visible_news = events
+        self._update_intelligence(self.news, events)
+
+    def _show_news_detail(self, row: int, _column: int) -> None:
+        if not 0 <= row < len(self._visible_news):
+            return
+        event = self._visible_news[row]
+        reactions = (
+            "\n".join(f"+{minutes}m: {format_percent(value)}" for minutes, value in event.reactions)
+            or "Reaction windows pending"
+        )
+        explanation = "\n".join(event.explanation) or "Explanation unavailable"
+        QMessageBox.information(
+            self.news,
+            "News intelligence detail",
+            f"{event.title}\n\nSource: {event.source or 'N/A'}\n"
+            f"Published: {event.published_at or 'N/A'}\nReceived: {event.occurred_at}\n"
+            f"Processed: {event.processed_at or 'N/A'}\nAssets: {', '.join(event.assets)}\n\n"
+            f"ONLINE INTELLIGENCE\nSentiment: {format_percent(event.sentiment)}\n"
+            f"Relevance: {format_score(event.relevance)}\n"
+            f"Importance: {format_score(event.importance)}\n"
+            f"Event type: {event.event_type or 'N/A'}\nNovelty: {format_score(event.novelty)}\n\n"
+            f"Importance factors:\n{explanation}\n\nRETROSPECTIVE RESEARCH\n"
+            f"Estimated impact: {format_score(event.estimated_impact)} "
+            f"({event.impact_maturity or 'Pending'})\n{reactions}\n\n"
+            "Observed association does not establish causality.",
+        )
 
     def _update_bots(self, snapshot: DashboardSnapshot) -> None:
         rows = [
@@ -431,7 +566,11 @@ class DashboardPages:
                 ", ".join(event.assets) or "N/A",
                 format_percent(event.sentiment),
                 format_score(event.relevance),
+                format_score(event.importance),
+                event.event_type or "Not available",
+                format_score(event.novelty),
                 format_score(event.estimated_impact),
+                event.impact_maturity or "Pending",
             ]
             for event in events
         ]

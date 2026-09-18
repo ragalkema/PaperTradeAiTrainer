@@ -95,3 +95,70 @@ class NewsMarketAssociationModel(DataCollectorBase):
     __table_args__ = (
         Index("uq_news_market_window", "news_event_id", "market", "window_minutes", unique=True),
     )
+
+
+class NewsIntelligenceModel(DataCollectorBase):
+    __tablename__ = "news_intelligence"
+    intelligence_id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    news_event_id: Mapped[UUID] = mapped_column(
+        ForeignKey("news_events.news_event_id", ondelete="CASCADE"), index=True
+    )
+    asset: Mapped[str] = mapped_column(String(20), index=True)
+    relevance: Mapped[Decimal] = mapped_column(SCORE)
+    sentiment: Mapped[Decimal] = mapped_column(SCORE)
+    sentiment_confidence: Mapped[Decimal] = mapped_column(SCORE)
+    importance: Mapped[Decimal] = mapped_column(SCORE, index=True)
+    importance_confidence: Mapped[Decimal] = mapped_column(SCORE)
+    event_type: Mapped[str] = mapped_column(String(40), index=True)
+    event_confidence: Mapped[Decimal] = mapped_column(SCORE)
+    secondary_tags: Mapped[list[str]] = mapped_column(JSON)
+    novelty: Mapped[Decimal] = mapped_column(SCORE)
+    novelty_confidence: Mapped[Decimal] = mapped_column(SCORE)
+    story_cluster_id: Mapped[UUID] = mapped_column(Uuid, index=True)
+    sentiment_version: Mapped[str] = mapped_column(String(100))
+    importance_version: Mapped[str] = mapped_column(String(100))
+    classifier_version: Mapped[str] = mapped_column(String(100))
+    novelty_version: Mapped[str] = mapped_column(String(100))
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    explanation: Mapped[dict[str, list[str]]] = mapped_column(JSON)
+    __table_args__ = (
+        Index(
+            "uq_news_intelligence_versions",
+            "news_event_id",
+            "asset",
+            "sentiment_version",
+            "importance_version",
+            "classifier_version",
+            "novelty_version",
+            unique=True,
+        ),
+    )
+
+
+class NewsFeatureSnapshotModel(DataCollectorBase):
+    __tablename__ = "news_feature_snapshots"
+    snapshot_id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    market: Mapped[str] = mapped_column(String(32), index=True)
+    feature_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    feature_version: Mapped[str] = mapped_column(String(100))
+    analyzer_versions: Mapped[list[str]] = mapped_column(JSON)
+    lookbacks_minutes: Mapped[list[int]] = mapped_column(JSON)
+    features: Mapped[dict[str, Any]] = mapped_column(JSON)
+    __table_args__ = (
+        Index("uq_news_feature_identity", "market", "feature_time", "feature_version", unique=True),
+    )
+
+
+class NewsMarketImpactModel(DataCollectorBase):
+    __tablename__ = "news_market_impact"
+    news_event_id: Mapped[UUID] = mapped_column(
+        ForeignKey("news_events.news_event_id", ondelete="CASCADE"), primary_key=True
+    )
+    asset: Mapped[str] = mapped_column(String(20), primary_key=True)
+    score: Mapped[Decimal] = mapped_column(SCORE, index=True)
+    available_windows: Mapped[list[int]] = mapped_column(JSON)
+    pending_windows: Mapped[list[int]] = mapped_column(JSON)
+    analyzer_version: Mapped[str] = mapped_column(String(100))
+    calculated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    components: Mapped[dict[str, str]] = mapped_column(JSON)

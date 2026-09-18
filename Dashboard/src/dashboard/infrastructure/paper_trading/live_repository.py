@@ -6,9 +6,11 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from threading import Lock
-from typing import Any, cast
+from typing import Any, Protocol, cast
+from uuid import UUID
 
 from data_collector.application.ports import NewsQueryPort
+from data_collector.domain.entities import MarketAssociation, NewsIntelligence, RetrospectiveImpact
 from paper_trading.application.ports import ResearchQueryPort
 from paper_trading.infrastructure.bitvavo import BitvavoMarketDataAdapter
 from shared.contracts import MarketSymbol
@@ -30,6 +32,12 @@ from dashboard.application.view_models import (
 logger = logging.getLogger(__name__)
 
 
+class DashboardNewsQueryPort(NewsQueryPort, Protocol):
+    async def intelligence_for_event(self, news_event_id: UUID) -> tuple[NewsIntelligence, ...]: ...
+    async def impact_for_event(self, news_event_id: UUID) -> tuple[RetrospectiveImpact, ...]: ...
+    async def associations(self, news_event_id: UUID) -> tuple[MarketAssociation, ...]: ...
+
+
 class LiveDashboardRepository:
     """Thread-safe latest snapshot backed only by public Bitvavo reads."""
 
@@ -37,7 +45,7 @@ class LiveDashboardRepository:
         self,
         markets: tuple[str, ...] = ("BTC-EUR", "ETH-EUR", "SOL-EUR"),
         research: ResearchQueryPort | None = None,
-        news: NewsQueryPort | None = None,
+        news: DashboardNewsQueryPort | None = None,
     ) -> None:
         self._markets = markets
         self._research = research
@@ -113,20 +121,46 @@ class LiveDashboardRepository:
     async def _fetch_news(self) -> tuple[IntelligenceEvent, ...]:
         assert self._news is not None
         events = await self._news.recent_news(since=datetime.now(UTC) - timedelta(hours=24))
-        return tuple(
-            IntelligenceEvent(
-                event_id=str(item.news_event_id),
-                kind="news",
-                occurred_at=item.received_at,
-                title=item.title,
-                source=item.source_name,
-                assets=item.mentioned_assets,
-                sentiment=item.sentiment,
-                relevance=max(item.asset_relevance.values(), default=None),
-                importance=item.importance,
+        output = []
+        for item in events:
+            intelligence, impacts, reactions = await asyncio.gather(
+                self._news.intelligence_for_event(item.news_event_id),
+                self._news.impact_for_event(item.news_event_id),
+                self._news.associations(item.news_event_id),
             )
-            for item in events
-        )
+            impacts_by_asset = {value.asset: value for value in impacts}
+            for value in intelligence:
+                impact = impacts_by_asset.get(value.asset)
+                available = len(impact.available_windows) if impact else 0
+                total = available + len(impact.pending_windows) if impact else 0
+                output.append(
+                    IntelligenceEvent(
+                        event_id=str(item.news_event_id),
+                        kind="news",
+                        occurred_at=item.received_at,
+                        title=item.title,
+                        source=item.source_name,
+                        assets=(value.asset,),
+                        sentiment=value.sentiment,
+                        relevance=value.relevance,
+                        importance=value.importance,
+                        estimated_impact=impact.score if impact else None,
+                        novelty=value.novelty,
+                        event_type=value.event_type.value,
+                        published_at=item.published_at,
+                        processed_at=value.processed_at,
+                        sentiment_confidence=value.sentiment_confidence,
+                        event_confidence=value.event_confidence,
+                        impact_maturity=f"{available}/{total} windows" if impact else "Pending",
+                        reactions=tuple(
+                            (reaction.window_minutes, reaction.price_return)
+                            for reaction in reactions
+                            if reaction.market.startswith(f"{value.asset}-")
+                        ),
+                        explanation=value.explanation.get("importance", ()),
+                    )
+                )
+        return tuple(output)
 
     async def _fetch(self) -> tuple[MarketSummary, ...]:
         async with BitvavoMarketDataAdapter(timeout_seconds=7) as adapter:

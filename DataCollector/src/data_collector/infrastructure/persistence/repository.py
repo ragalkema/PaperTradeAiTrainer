@@ -1,26 +1,34 @@
 """Async SQLAlchemy adapter for immutable raw and normalized news queries."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import overload
-from uuid import UUID
+from uuid import NAMESPACE_URL, UUID, uuid5
 
-from sqlalchemy import desc, select, update
+from sqlalchemy import and_, desc, exists, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from data_collector.domain.entities import (
     MarketAssociation,
     NewsEvent,
+    NewsEventType,
+    NewsFeatureSnapshot,
+    NewsIntelligence,
     NewsSource,
     NewsSourceKind,
+    OnlineNewsItem,
     RawNewsItem,
     RawNewsStatus,
+    RetrospectiveImpact,
     SourceHealth,
 )
 from data_collector.infrastructure.persistence.models import (
     NewsEventModel,
+    NewsFeatureSnapshotModel,
+    NewsIntelligenceModel,
     NewsMarketAssociationModel,
+    NewsMarketImpactModel,
     NewsSourceModel,
     RawNewsItemModel,
 )
@@ -126,6 +134,130 @@ class SqlAlchemyNewsRepository:
             rows = tuple((await session.scalars(query)).all())
         return tuple(_to_source(item) for item in rows)
 
+    async def unanalyzed_events(self, limit: int = 200) -> tuple[NewsEvent, ...]:
+        _limit(limit)
+        query = (
+            select(NewsEventModel)
+            .where(
+                ~exists().where(NewsIntelligenceModel.news_event_id == NewsEventModel.news_event_id)
+            )
+            .order_by(NewsEventModel.received_at, NewsEventModel.news_event_id)
+            .limit(limit)
+        )
+        async with self._sessions() as session:
+            rows = tuple((await session.scalars(query)).all())
+        return tuple(_to_event(item) for item in rows)
+
+    async def prior_events(
+        self, received_before: datetime, lookback: timedelta
+    ) -> tuple[NewsEvent, ...]:
+        query = (
+            select(NewsEventModel)
+            .where(
+                and_(
+                    NewsEventModel.received_at < received_before,
+                    NewsEventModel.received_at >= received_before - lookback,
+                )
+            )
+            .order_by(NewsEventModel.received_at)
+        )
+        async with self._sessions() as session:
+            rows = tuple((await session.scalars(query)).all())
+        return tuple(_to_event(item) for item in rows)
+
+    async def set_story_cluster(self, news_event_id: UUID, story_cluster_id: UUID) -> None:
+        async with self._sessions.begin() as session:
+            await session.execute(
+                update(NewsEventModel)
+                .where(NewsEventModel.news_event_id == news_event_id)
+                .values(story_cluster_id=story_cluster_id)
+            )
+
+    async def add_intelligence(self, value: NewsIntelligence) -> bool:
+        try:
+            async with self._sessions.begin() as session:
+                session.add(NewsIntelligenceModel(**_intelligence_values(value)))
+        except IntegrityError:
+            return False
+        return True
+
+    async def intelligence_for_event(self, news_event_id: UUID) -> tuple[NewsIntelligence, ...]:
+        query = (
+            select(NewsIntelligenceModel)
+            .where(NewsIntelligenceModel.news_event_id == news_event_id)
+            .order_by(NewsIntelligenceModel.asset)
+        )
+        async with self._sessions() as session:
+            rows = tuple((await session.scalars(query)).all())
+        return tuple(_to_intelligence(item) for item in rows)
+
+    async def get_news_available_at(
+        self, market: str, decision_time: datetime, lookback: timedelta
+    ) -> tuple[OnlineNewsItem, ...]:
+        if decision_time.tzinfo is None:
+            raise ValueError("decision_time must be timezone-aware")
+        asset = market.split("-", 1)[0].upper()
+        query = (
+            select(NewsEventModel, NewsIntelligenceModel)
+            .join(
+                NewsIntelligenceModel,
+                NewsIntelligenceModel.news_event_id == NewsEventModel.news_event_id,
+            )
+            .where(
+                and_(
+                    NewsIntelligenceModel.asset == asset,
+                    NewsEventModel.received_at <= decision_time,
+                    NewsEventModel.received_at >= decision_time - lookback,
+                    NewsEventModel.processed_at <= decision_time,
+                )
+            )
+            .order_by(NewsEventModel.received_at)
+        )
+        async with self._sessions() as session:
+            rows = tuple((await session.execute(query)).all())
+        return tuple(
+            OnlineNewsItem(_to_event(event), _to_intelligence(value)) for event, value in rows
+        )
+
+    async def add_feature_snapshot(self, value: NewsFeatureSnapshot) -> None:
+        values = _feature_values(value)
+        async with self._sessions.begin() as session:
+            existing = await session.get(NewsFeatureSnapshotModel, values["snapshot_id"])
+            if existing is None:
+                session.add(NewsFeatureSnapshotModel(**values))
+
+    async def upsert_impact(self, value: RetrospectiveImpact) -> None:
+        async with self._sessions.begin() as session:
+            existing = await session.get(NewsMarketImpactModel, (value.news_event_id, value.asset))
+            values = _impact_values(value)
+            if existing is None:
+                session.add(NewsMarketImpactModel(**values))
+            else:
+                for key, item in values.items():
+                    setattr(existing, key, item)
+
+    async def impact_for_event(self, news_event_id: UUID) -> tuple[RetrospectiveImpact, ...]:
+        query = (
+            select(NewsMarketImpactModel)
+            .where(NewsMarketImpactModel.news_event_id == news_event_id)
+            .order_by(NewsMarketImpactModel.asset)
+        )
+        async with self._sessions() as session:
+            rows = tuple((await session.scalars(query)).all())
+        return tuple(_to_impact(item) for item in rows)
+
+    async def top_impact(self, since: datetime, limit: int = 5) -> tuple[RetrospectiveImpact, ...]:
+        query = (
+            select(NewsMarketImpactModel)
+            .join(NewsEventModel)
+            .where(NewsEventModel.received_at >= since)
+            .order_by(desc(NewsMarketImpactModel.score))
+            .limit(limit)
+        )
+        async with self._sessions() as session:
+            rows = tuple((await session.scalars(query)).all())
+        return tuple(_to_impact(item) for item in rows)
+
 
 def _limit(value: int) -> None:
     if not 1 <= value <= 1_000:
@@ -204,6 +336,79 @@ def _association_values(value: MarketAssociation) -> dict[str, object]:
     }
 
 
+def _intelligence_values(value: NewsIntelligence) -> dict[str, object]:
+    return {
+        "intelligence_id": value.intelligence_id,
+        "news_event_id": value.news_event_id,
+        "asset": value.asset,
+        "relevance": value.relevance,
+        "sentiment": value.sentiment,
+        "sentiment_confidence": value.sentiment_confidence,
+        "importance": value.importance,
+        "importance_confidence": value.importance_confidence,
+        "event_type": value.event_type.value,
+        "event_confidence": value.event_confidence,
+        "secondary_tags": [item.value for item in value.secondary_tags],
+        "novelty": value.novelty,
+        "novelty_confidence": value.novelty_confidence,
+        "story_cluster_id": value.story_cluster_id,
+        "sentiment_version": value.sentiment_version,
+        "importance_version": value.importance_version,
+        "classifier_version": value.classifier_version,
+        "novelty_version": value.novelty_version,
+        "processed_at": value.processed_at,
+        "explanation": {key: list(item) for key, item in value.explanation.items()},
+    }
+
+
+def _feature_values(value: NewsFeatureSnapshot) -> dict[str, object]:
+    features = {
+        name: getattr(value, name)
+        for name in (
+            "news_count_15m",
+            "news_count_1h",
+            "news_count_6h",
+            "max_relevance_1h",
+            "mean_sentiment_15m",
+            "mean_sentiment_1h",
+            "mean_sentiment_6h",
+            "relevance_weighted_sentiment_1h",
+            "max_importance_1h",
+            "mean_importance_1h",
+            "max_novelty_1h",
+            "breaking_news_count_15m",
+        )
+    }
+    return {
+        "snapshot_id": uuid5(
+            NAMESPACE_URL,
+            f"news-feature:{value.market}:{value.feature_time.isoformat()}:{value.feature_version}",
+        ),
+        "market": value.market,
+        "feature_time": value.feature_time,
+        "generated_at": value.generated_at,
+        "feature_version": value.feature_version,
+        "analyzer_versions": list(value.analyzer_versions),
+        "lookbacks_minutes": list(value.lookbacks_minutes),
+        "features": {
+            key: str(item) if isinstance(item, Decimal) else item for key, item in features.items()
+        },
+    }
+
+
+def _impact_values(value: RetrospectiveImpact) -> dict[str, object]:
+    return {
+        "news_event_id": value.news_event_id,
+        "asset": value.asset,
+        "score": value.score,
+        "available_windows": list(value.available_windows),
+        "pending_windows": list(value.pending_windows),
+        "analyzer_version": value.analyzer_version,
+        "calculated_at": value.calculated_at,
+        "components": {key: str(item) for key, item in value.components.items()},
+    }
+
+
 def _to_source(item: NewsSourceModel) -> NewsSource:
     return NewsSource(
         item.source_id,
@@ -254,6 +459,44 @@ def _to_association(item: NewsMarketAssociationModel) -> MarketAssociation:
         _utc(item.observed_at),
         item.volume_before,
         item.volume_after,
+    )
+
+
+def _to_intelligence(item: NewsIntelligenceModel) -> NewsIntelligence:
+    return NewsIntelligence(
+        item.intelligence_id,
+        item.news_event_id,
+        item.asset,
+        item.relevance,
+        item.sentiment,
+        item.sentiment_confidence,
+        item.importance,
+        item.importance_confidence,
+        NewsEventType(item.event_type),
+        item.event_confidence,
+        tuple(NewsEventType(value) for value in item.secondary_tags),
+        item.novelty,
+        item.novelty_confidence,
+        item.story_cluster_id,
+        item.sentiment_version,
+        item.importance_version,
+        item.classifier_version,
+        item.novelty_version,
+        _utc(item.processed_at),
+        {key: tuple(value) for key, value in item.explanation.items()},
+    )
+
+
+def _to_impact(item: NewsMarketImpactModel) -> RetrospectiveImpact:
+    return RetrospectiveImpact(
+        item.news_event_id,
+        item.asset,
+        item.score,
+        tuple(item.available_windows),
+        tuple(item.pending_windows),
+        item.analyzer_version,
+        _utc(item.calculated_at),
+        {key: Decimal(value) for key, value in item.components.items()},
     )
 
 

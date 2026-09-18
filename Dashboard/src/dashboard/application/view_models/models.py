@@ -124,6 +124,14 @@ class IntelligenceEvent:
     estimated_impact: Decimal | None = None
     author_influence: Decimal | None = None
     novelty: Decimal | None = None
+    event_type: str | None = None
+    published_at: datetime | None = None
+    processed_at: datetime | None = None
+    sentiment_confidence: Decimal | None = None
+    event_confidence: Decimal | None = None
+    impact_maturity: str | None = None
+    reactions: tuple[tuple[int, Decimal], ...] = ()
+    explanation: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

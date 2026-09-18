@@ -57,6 +57,41 @@ class DashboardService:
             )[:limit]
         )
 
+    @staticmethod
+    def top_importance(
+        events: tuple[IntelligenceEvent, ...], limit: int = 5
+    ) -> tuple[IntelligenceEvent, ...]:
+        return tuple(
+            sorted(
+                (item for item in events if item.importance is not None),
+                key=lambda item: (
+                    -(item.importance or Decimal("0")),
+                    -item.occurred_at.timestamp(),
+                    item.event_id,
+                ),
+            )[:limit]
+        )
+
+    @staticmethod
+    def top_relevance(
+        events: tuple[IntelligenceEvent, ...], asset: str | None = None, limit: int = 5
+    ) -> tuple[IntelligenceEvent, ...]:
+        eligible = (
+            item
+            for item in events
+            if item.relevance is not None and (asset is None or asset in item.assets)
+        )
+        return tuple(
+            sorted(
+                eligible,
+                key=lambda item: (
+                    -(item.relevance or Decimal("0")),
+                    -item.occurred_at.timestamp(),
+                    item.event_id,
+                ),
+            )[:limit]
+        )
+
 
 def format_money(value: Decimal | None, currency: str = "EUR") -> str:
     if value is None:

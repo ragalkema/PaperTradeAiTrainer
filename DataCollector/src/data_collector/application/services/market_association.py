@@ -21,7 +21,7 @@ class MarketAssociationService:
         self,
         event: NewsEvent,
         candles: tuple[CandleObservation, ...],
-        windows: tuple[int, ...] = (5, 15, 30, 60),
+        windows: tuple[int, ...] = (5, 15, 30, 60, 240, 1440),
     ) -> tuple[MarketAssociation, ...]:
         """Compare bounded observations using received_at as the availability boundary."""
         associations: list[MarketAssociation] = []

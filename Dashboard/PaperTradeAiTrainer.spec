@@ -8,10 +8,11 @@ a = Analysis(
     pathex=[
         str(root / "Dashboard" / "src"),
         str(root / "PaperTrading" / "src"),
+        str(root / "DataCollector" / "src"),
         str(root / "shared" / "src"),
     ],
     datas=[(str(root / "Dashboard" / "assets"), "Dashboard/assets")],
-    hiddenimports=["dashboard", "paper_trading", "shared"],
+    hiddenimports=["dashboard", "data_collector", "paper_trading", "shared"],
 )
 pyz = PYZ(a.pure)
 exe = EXE(
