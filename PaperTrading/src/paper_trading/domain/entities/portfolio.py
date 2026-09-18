@@ -50,3 +50,4 @@ class PortfolioSnapshot:
     realized_pnl: Money
     portfolio_value: Money
     fees_paid: Money
+    asset_cost_basis: dict[AssetSymbol, Money] = field(default_factory=dict)

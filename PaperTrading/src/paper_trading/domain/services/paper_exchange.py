@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from decimal import Decimal
-from uuid import UUID
+from uuid import uuid4
 
 from shared.contracts import (
     ActionType,
@@ -111,7 +111,7 @@ class DeterministicPaperExchange:
         slippage: Decimal,
         realized_pnl: Decimal,
     ) -> TradeResult:
-        trade_id = UUID(int=len(self._trades) + 1)
+        trade_id = uuid4()
         market_price = state.ask if action.action is ActionType.BUY else state.bid
         requested_value = (
             action.requested_value if action.action is ActionType.BUY else quantity * market_price
@@ -180,6 +180,7 @@ class DeterministicPaperExchange:
             self._portfolio.realized_pnl,
             total,
             self._portfolio.fees_paid,
+            dict(self._portfolio.cost_basis),
         )
 
     def _state_for_asset(self, asset: AssetSymbol) -> MarketState:

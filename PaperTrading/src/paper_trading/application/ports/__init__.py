@@ -2,6 +2,14 @@
 
 from paper_trading.application.ports.market_data import MarketDataPort
 from paper_trading.application.ports.paper_exchange import PaperExchange
+from paper_trading.application.ports.research_repository import ResearchQueryPort, ResearchWritePort
 from paper_trading.application.ports.storage import CandleRepository, RawMarketDataStore
 
-__all__ = ["CandleRepository", "MarketDataPort", "PaperExchange", "RawMarketDataStore"]
+__all__ = [
+    "CandleRepository",
+    "MarketDataPort",
+    "PaperExchange",
+    "RawMarketDataStore",
+    "ResearchQueryPort",
+    "ResearchWritePort",
+]
