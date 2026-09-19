@@ -5,7 +5,18 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, Uuid
+from sqlalchemy import (
+    JSON,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    Uuid,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from paper_trading.infrastructure.persistence import Base
@@ -38,7 +49,7 @@ class BotDefinitionModel(Base):
     bot_type: Mapped[str] = mapped_column(String(100))
     version: Mapped[str] = mapped_column(String(100))
     configuration: Mapped[dict[str, Any]] = mapped_column(JSON)
-    __table_args__ = (Index("uq_bot_identity", "name", "bot_type", "version", unique=True),)
+    __table_args__ = (UniqueConstraint("name", "bot_type", "version", name="uq_bot_identity"),)
 
 
 class SessionBotModel(Base):
@@ -52,7 +63,7 @@ class SessionBotModel(Base):
     status: Mapped[str] = mapped_column(String(32), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     participant_configuration: Mapped[dict[str, Any]] = mapped_column(JSON)
-    __table_args__ = (Index("uq_session_bot", "session_id", "bot_id", unique=True),)
+    __table_args__ = (UniqueConstraint("session_id", "bot_id", name="uq_session_bot"),)
 
 
 class PortfolioSnapshotModel(Base):

@@ -5,7 +5,18 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, Uuid
+from sqlalchemy import (
+    JSON,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    Uuid,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -56,9 +67,7 @@ class RawNewsItemModel(DataCollectorBase):
 class NewsEventModel(DataCollectorBase):
     __tablename__ = "news_events"
     news_event_id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
-    raw_item_id: Mapped[UUID] = mapped_column(
-        ForeignKey("raw_news_items.raw_item_id"), unique=True, index=True
-    )
+    raw_item_id: Mapped[UUID] = mapped_column(ForeignKey("raw_news_items.raw_item_id"))
     source_id: Mapped[str] = mapped_column(ForeignKey("news_sources.source_id"), index=True)
     source_name: Mapped[str] = mapped_column(String(200))
     title: Mapped[str] = mapped_column(Text)
@@ -73,9 +82,15 @@ class NewsEventModel(DataCollectorBase):
     importance: Mapped[Decimal | None] = mapped_column(SCORE)
     sentiment: Mapped[Decimal | None] = mapped_column(SCORE)
     language: Mapped[str] = mapped_column(String(20))
-    duplicate_group_id: Mapped[UUID | None] = mapped_column(Uuid, unique=True, index=True)
+    duplicate_group_id: Mapped[UUID | None] = mapped_column(Uuid)
     story_cluster_id: Mapped[UUID | None] = mapped_column(Uuid, index=True)
-    __table_args__ = (Index("ix_news_availability", "received_at", "processed_at"),)
+    __table_args__ = (
+        UniqueConstraint("raw_item_id", name="news_events_raw_item_id_key"),
+        UniqueConstraint("duplicate_group_id", name="news_events_duplicate_group_id_key"),
+        Index("ix_news_events_raw_item_id", "raw_item_id"),
+        Index("ix_news_events_duplicate_group_id", "duplicate_group_id"),
+        Index("ix_news_availability", "received_at", "processed_at"),
+    )
 
 
 class NewsMarketAssociationModel(DataCollectorBase):
@@ -179,7 +194,7 @@ class TrackedSocialAccountModel(DataCollectorBase):
     posts_per_day: Mapped[Decimal | None] = mapped_column(MONEY)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    __table_args__ = (Index("uq_social_provider_username", "provider", "username", unique=True),)
+    __table_args__ = (UniqueConstraint("provider", "username", name="uq_social_provider_username"),)
 
 
 class RawSocialPostModel(DataCollectorBase):
@@ -201,7 +216,9 @@ class RawSocialPostModel(DataCollectorBase):
     raw_metadata: Mapped[dict[str, Any]] = mapped_column(JSON)
     version: Mapped[int]
     __table_args__ = (
-        Index("uq_raw_social_version", "provider", "external_post_id", "content_hash", unique=True),
+        UniqueConstraint(
+            "provider", "external_post_id", "content_hash", name="uq_raw_social_version"
+        ),
     )
 
 
@@ -277,8 +294,8 @@ class SocialFeatureSnapshotModel(DataCollectorBase):
     analyzer_versions: Mapped[list[str]] = mapped_column(JSON)
     features: Mapped[dict[str, Any]] = mapped_column(JSON)
     __table_args__ = (
-        Index(
-            "uq_social_feature_identity", "market", "feature_time", "feature_version", unique=True
+        UniqueConstraint(
+            "market", "feature_time", "feature_version", name="uq_social_feature_identity"
         ),
     )
 
@@ -298,8 +315,8 @@ class SocialMarketReactionModel(DataCollectorBase):
     volume_before: Mapped[Decimal | None] = mapped_column(MONEY)
     volume_after: Mapped[Decimal | None] = mapped_column(MONEY)
     __table_args__ = (
-        Index(
-            "uq_social_market_window", "social_event_id", "market", "window_minutes", unique=True
+        UniqueConstraint(
+            "social_event_id", "market", "window_minutes", name="uq_social_market_window"
         ),
     )
 
