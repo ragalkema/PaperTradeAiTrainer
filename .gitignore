@@ -95,6 +95,7 @@ wandb/
 runs/
 lightning_logs/
 reports/generated/
+backups/
 
 # Common data dumps
 *.parquet

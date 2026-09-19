@@ -7,10 +7,12 @@ import random
 import subprocess
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from hashlib import sha256
 from pathlib import Path
 from uuid import uuid4
 
 from data_collector.domain.entities import NewsFeatureSnapshot, SocialFeatureSnapshot
+from data_operations.domain.entities import ResearchReadinessReport
 from shared.contracts import Candle, MarketSymbol
 
 from ai_trainer.application.services.dataset import (
@@ -39,6 +41,12 @@ def _parser() -> argparse.ArgumentParser:
     compare.add_argument("--start")
     compare.add_argument("--end")
     compare.add_argument("--synthetic", action="store_true", help="validate mechanics only")
+    compare.add_argument("--allow-unready", action="store_true", help="override readiness warning")
+    readiness = commands.add_parser("dataset-readiness")
+    readiness.add_argument("--market", choices=("BTC-EUR", "ETH-EUR", "SOL-EUR"), default="BTC-EUR")
+    readiness.add_argument("--interval", default="1h")
+    readiness.add_argument("--start", required=True)
+    readiness.add_argument("--end", required=True)
     return parser
 
 
@@ -57,6 +65,16 @@ async def _compare(args: argparse.Namespace) -> int:
     start = datetime.fromisoformat(args.start) if args.start else end - timedelta(hours=args.limit)
     if start.tzinfo is None:
         start = start.replace(tzinfo=UTC)
+    readiness_report: ResearchReadinessReport | None = None
+    if not args.synthetic:
+        readiness_report = await _readiness_report(args.market, args.interval, start, end)
+        combined = next(
+            x for x in readiness_report.groups if x.feature_group == "market_news_social"
+        )
+        if not combined.ready and not args.allow_unready:
+            print("WARNING: combined dataset is not research ready: " + ", ".join(combined.reasons))
+            print("Use --allow-unready only for research/debug purposes.")
+            return 3
     candles = (
         _synthetic_candles(args.market, args.interval, start, args.limit, args.seed)
         if args.synthetic
@@ -87,6 +105,8 @@ async def _compare(args: argparse.Namespace) -> int:
         git_commit=commit,
     )
     DatasetLeakageValidator().validate(dataset)
+    if readiness_report is not None:
+        await _freeze_manifest(dataset, readiness_report, commit)
     store = ResearchArtifactStore()
     location = store.save_dataset(dataset)
     split = chronological_split(dataset.rows, purge=configuration.target_horizon)
@@ -176,7 +196,90 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.command == "compare-feature-groups":
         return asyncio.run(_compare(args))
+    if args.command == "dataset-readiness":
+        return asyncio.run(_print_readiness(args))
     return 2
+
+
+async def _readiness_report(
+    market: str, interval: str, start: datetime, end: datetime
+) -> ResearchReadinessReport:
+    from data_operations.application.readiness import ReadinessQueryService
+    from data_operations.infrastructure.repository import SqlAlchemyOperationsRepository
+    from data_operations.infrastructure.session import operations_session_factory
+
+    return await ReadinessQueryService(
+        SqlAlchemyOperationsRepository(operations_session_factory)
+    ).report(market, interval, start, end)
+
+
+async def _print_readiness(args: argparse.Namespace) -> int:
+    report = await _readiness_report(
+        args.market,
+        args.interval,
+        datetime.fromisoformat(args.start),
+        datetime.fromisoformat(args.end),
+    )
+    print(
+        json.dumps(
+            {
+                "market": report.market,
+                "interval": report.interval,
+                "policy": report.policy_version,
+                "market_coverage": report.market_coverage,
+                "news_uptime": report.news_operational_coverage,
+                "social_uptime": report.social_operational_coverage,
+                "groups": [
+                    {"name": x.feature_group, "ready": x.ready, "reasons": x.reasons}
+                    for x in report.groups
+                ],
+            },
+            indent=2,
+        )
+    )
+    return 0
+
+
+async def _freeze_manifest(
+    dataset: object, readiness: ResearchReadinessReport, git_commit: str | None
+) -> None:
+    from data_operations.domain.entities import DatasetManifest
+    from data_operations.infrastructure.repository import SqlAlchemyOperationsRepository
+    from data_operations.infrastructure.session import operations_session_factory
+
+    from ai_trainer.domain.entities import UnifiedDataset
+
+    if not isinstance(dataset, UnifiedDataset):
+        raise TypeError("expected UnifiedDataset")
+    identity = sha256(
+        f"{dataset.metadata.fingerprint}:{readiness.policy_version}".encode()
+    ).hexdigest()
+    await SqlAlchemyOperationsRepository(operations_session_factory).save_manifest(
+        DatasetManifest(
+            identity,
+            dataset.metadata.market,
+            dataset.metadata.interval,
+            dataset.metadata.start_time,
+            dataset.metadata.end_time,
+            len(dataset.rows),
+            {
+                "market": dataset.metadata.market_feature_version,
+                "news": dataset.metadata.news_feature_version,
+                "social": dataset.metadata.social_feature_version,
+                "target": dataset.metadata.target_version,
+            },
+            dataset.metadata.analyzer_versions,
+            {
+                "market": readiness.market_coverage,
+                "news": readiness.news_operational_coverage,
+                "social": readiness.social_operational_coverage,
+            },
+            dataset.metadata.fingerprint,
+            readiness.policy_version,
+            datetime.now(UTC),
+            git_commit,
+        )
+    )
 
 
 if __name__ == "__main__":

@@ -21,6 +21,9 @@ from data_collector.domain.entities import (
     SocialMarketImpact,
     SocialMarketReaction,
 )
+from data_operations.application.ports import OperationsRepository
+from data_operations.application.readiness import ReadinessQueryService
+from data_operations.domain.entities import OperationalInterval
 from paper_trading.application.ports import ResearchQueryPort
 from paper_trading.infrastructure.bitvavo import BitvavoMarketDataAdapter
 from shared.contracts import MarketSymbol
@@ -29,6 +32,7 @@ from dashboard.application.view_models import (
     BotSummary,
     ConnectionState,
     DashboardSnapshot,
+    DataHealthSummary,
     DecisionSummary,
     ExperimentSummary,
     IntelligenceEvent,
@@ -59,6 +63,19 @@ class DashboardSocialQueryPort(Protocol):
     async def social_reactions(self, event_id: UUID) -> tuple[SocialMarketReaction, ...]: ...
 
 
+class DashboardOperationsPort(Protocol):
+    async def candle_timestamps(
+        self, market: str, interval: str, start: datetime, end: datetime
+    ) -> tuple[datetime, ...]: ...
+    async def health_intervals(
+        self, source: str, start: datetime, end: datetime
+    ) -> tuple[OperationalInterval, ...]: ...
+    async def table_counts(self) -> dict[str, int]: ...
+    async def event_counts(
+        self, source: str, asset: str, start: datetime, end: datetime
+    ) -> tuple[int, int, datetime | None]: ...
+
+
 class LiveDashboardRepository:
     """Thread-safe latest snapshot backed only by public Bitvavo reads."""
 
@@ -68,11 +85,13 @@ class LiveDashboardRepository:
         research: ResearchQueryPort | None = None,
         news: DashboardNewsQueryPort | None = None,
         social: DashboardSocialQueryPort | None = None,
+        operations: DashboardOperationsPort | None = None,
     ) -> None:
         self._markets = markets
         self._research = research
         self._news = news
         self._social = social
+        self._operations = operations
         initial = tuple(
             MarketSummary(market, state=ConnectionState.CONNECTING) for market in markets
         )
@@ -127,6 +146,13 @@ class LiveDashboardRepository:
                     logger.exception("dashboard_social_refresh_failed")
                     connections["Social/X"] = ConnectionState.ERROR
                     errors += ("Social database unavailable. Other data remains live.",)
+            operations_values: dict[str, object] = {}
+            if self._operations:
+                try:
+                    operations_values = {"data_health": asyncio.run(self._fetch_data_health())}
+                except Exception:
+                    logger.exception("dashboard_data_health_refresh_failed")
+                    errors += ("Data Operations metrics unavailable.",)
             updated = replace(
                 self.snapshot(),
                 markets=markets,
@@ -136,6 +162,7 @@ class LiveDashboardRepository:
                 **cast(Any, research_values),
                 **cast(Any, news_values),
                 **cast(Any, social_values),
+                **cast(Any, operations_values),
             )
         except Exception:  # UI boundary converts details to logs and safe state.
             logger.exception("dashboard_market_refresh_failed")
@@ -152,6 +179,54 @@ class LiveDashboardRepository:
         with self._lock:
             self._snapshot = updated
         return updated
+
+    async def _fetch_data_health(self) -> DataHealthSummary:
+        assert self._operations is not None
+        from data_operations.application.gaps import MarketGapDetector
+        from data_operations.domain.entities import HealthStatus
+
+        end = datetime.now(UTC)
+        start = end - timedelta(days=30)
+        timestamps, news, social, counts, readiness = await asyncio.gather(
+            self._operations.candle_timestamps("BTC-EUR", "1h", start, end),
+            self._operations.health_intervals("news", start, end),
+            self._operations.health_intervals("social", start, end),
+            self._operations.table_counts(),
+            ReadinessQueryService(cast(OperationsRepository, self._operations)).report(
+                "BTC-EUR", "1h", start, end
+            ),
+        )
+        gap = MarketGapDetector().detect(
+            "BTC-EUR",
+            "1h",
+            start.replace(minute=0, second=0, microsecond=0),
+            end.replace(minute=0, second=0, microsecond=0),
+            timestamps,
+        )
+        total = (end - start).total_seconds()
+
+        def uptime(intervals: tuple[OperationalInterval, ...]) -> float:
+            seconds = sum(
+                (x.end - x.start).total_seconds()
+                for x in intervals
+                if x.status is HealthStatus.HEALTHY
+            )
+            return seconds / total
+
+        def bar(intervals: tuple[OperationalInterval, ...]) -> str:
+            return "".join(
+                "█" if x.status is HealthStatus.HEALTHY else "░" for x in intervals[-48:]
+            )
+
+        return DataHealthSummary(
+            gap.coverage,
+            len(gap.missing),
+            uptime(news),
+            uptime(social),
+            tuple((group.feature_group, group.ready, group.reasons) for group in readiness.groups),
+            counts,
+            (("Market", "█" * min(48, gap.present)), ("News", bar(news)), ("Social", bar(social))),
+        )
 
     def _load_ml_research(self) -> MLResearchSummary | None:
         paths = sorted(

@@ -169,6 +169,17 @@ class MLResearchSummary:
 
 
 @dataclass(frozen=True, slots=True)
+class DataHealthSummary:
+    market_coverage: float | None = None
+    missing_candles: int | None = None
+    news_uptime: float | None = None
+    social_uptime: float | None = None
+    readiness: tuple[tuple[str, bool, tuple[str, ...]], ...] = ()
+    table_counts: dict[str, int] = field(default_factory=dict)
+    timeline: tuple[tuple[str, str], ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class DashboardSnapshot:
     markets: tuple[MarketSummary, ...] = ()
     bots: tuple[BotSummary, ...] = ()
@@ -182,5 +193,6 @@ class DashboardSnapshot:
     news: tuple[IntelligenceEvent, ...] = ()
     social: tuple[IntelligenceEvent, ...] = ()
     ml_research: MLResearchSummary | None = None
+    data_health: DataHealthSummary | None = None
     connections: dict[str, ConnectionState] = field(default_factory=dict)
     errors: tuple[str, ...] = ()

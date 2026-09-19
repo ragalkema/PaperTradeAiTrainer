@@ -43,14 +43,15 @@ ml = [
 
 [project.scripts]
 ai-trainer = "ai_trainer.interfaces.cli.main:main"
+data-operations = "data_operations.interfaces.cli:main"
 
 [tool.setuptools.packages.find]
-where = ["DataCollector/src", "PaperTrading/src", "AiTrainer/src", "Dashboard/src", "shared/src"]
+where = ["DataCollector/src", "PaperTrading/src", "AiTrainer/src", "Dashboard/src", "DataOperations/src", "shared/src"]
 
 [tool.pytest.ini_options]
 addopts = "--strict-markers --cov --cov-report=term-missing --cov-fail-under=70"
-testpaths = ["DataCollector/tests", "PaperTrading/tests", "AiTrainer/tests", "Dashboard/tests", "shared/tests", "tests"]
-pythonpath = [".", "DataCollector/src", "PaperTrading/src", "AiTrainer/src", "Dashboard/src", "shared/src"]
+testpaths = ["DataCollector/tests", "PaperTrading/tests", "AiTrainer/tests", "Dashboard/tests", "DataOperations/tests", "shared/tests", "tests"]
+pythonpath = [".", "DataCollector/src", "PaperTrading/src", "AiTrainer/src", "Dashboard/src", "DataOperations/src", "shared/src"]
 markers = [
   "unit: isolated tests without external resources",
   "integration: tests across infrastructure boundaries",
@@ -69,6 +70,7 @@ source = [
   "PaperTrading/src/paper_trading",
   "AiTrainer/src/ai_trainer",
   "Dashboard/src/dashboard",
+  "DataOperations/src/data_operations",
   "shared/src/shared",
 ]
 
@@ -95,8 +97,9 @@ files = [
   "PaperTrading/src",
   "AiTrainer/src",
   "Dashboard/src",
+  "DataOperations/src",
   "shared/src",
   "tests",
   "scripts/run_experiment.py",
 ]
-mypy_path = ["DataCollector/src", "PaperTrading/src", "AiTrainer/src", "Dashboard/src", "shared/src"]
+mypy_path = ["DataCollector/src", "PaperTrading/src", "AiTrainer/src", "Dashboard/src", "DataOperations/src", "shared/src"]

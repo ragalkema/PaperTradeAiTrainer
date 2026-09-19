@@ -5,6 +5,7 @@ from logging.config import fileConfig
 
 from alembic import context
 from data_collector.infrastructure.persistence import DataCollectorBase
+from data_operations.infrastructure.models import OperationsBase
 from paper_trading.infrastructure.configuration import get_settings
 from paper_trading.infrastructure.persistence import Base
 from sqlalchemy import pool
@@ -15,7 +16,7 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 config.set_main_option("sqlalchemy.url", get_settings().database_url)
-target_metadata = [Base.metadata, DataCollectorBase.metadata]
+target_metadata = [Base.metadata, DataCollectorBase.metadata, OperationsBase.metadata]
 
 
 def run_migrations_offline() -> None:

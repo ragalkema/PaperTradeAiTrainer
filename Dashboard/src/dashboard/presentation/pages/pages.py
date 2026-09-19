@@ -81,23 +81,23 @@ class OverviewPage(QWidget):
         bots.content.addWidget(
             EmptyState("No bot results", "Run or load an experiment to compare bots.")
         )
-        intelligence = Card("Top market impact · last 24 hours")
+        intelligence = Card("Top market impact Â· last 24 hours")
         self.impact_table = _table(["Headline", "Asset", "Impact", "Maturity"])
         intelligence.content.addWidget(self.impact_table)
         lower.addWidget(bots, 3)
         lower.addWidget(intelligence, 2)
         layout.addLayout(lower, 1)
-        sentiment = Card("News sentiment · analyzed last 24 hours")
+        sentiment = Card("News sentiment Â· analyzed last 24 hours")
         self.sentiment_summary = QLabel("Insufficient analyzed news")
         sentiment.content.addWidget(self.sentiment_summary)
         self.social_sentiment_summary = QLabel("Social: insufficient analyzed posts")
         sentiment.content.addWidget(self.social_sentiment_summary)
         layout.addWidget(sentiment)
         online_rankings = QHBoxLayout()
-        important = Card("Most important news · ONLINE")
+        important = Card("Most important news Â· ONLINE")
         self.importance_table = _table(["Headline", "Asset", "Importance"])
         important.content.addWidget(self.importance_table)
-        relevant = Card("Most relevant · ONLINE")
+        relevant = Card("Most relevant Â· ONLINE")
         self.relevance_table = _table(["Headline", "Asset", "Relevance"])
         relevant.content.addWidget(self.relevance_table)
         online_rankings.addWidget(important)
@@ -128,7 +128,7 @@ class OverviewPage(QWidget):
             if card:
                 card.set_metric(
                     format_money(market.current_price),
-                    f"{format_percent(market.change_24h)} 24h · {market.state}",
+                    f"{format_percent(market.change_24h)} 24h Â· {market.state}",
                 )
         impact_events = DashboardService.top_intelligence(snapshot.news)
         self.impact_table.setRowCount(len(impact_events))
@@ -152,7 +152,7 @@ class OverviewPage(QWidget):
                 mean = sum(sentiment_values, start=sentiment_values[0] * 0) / len(sentiment_values)
                 summaries.append(f"{asset} {mean:+.2f} (n={len(sentiment_values)})")
         self.sentiment_summary.setText(
-            "  ·  ".join(summaries) if summaries else "Insufficient analyzed news"
+            "  Â·  ".join(summaries) if summaries else "Insufficient analyzed news"
         )
         social_summaries = []
         for asset in ("BTC", "ETH", "SOL"):
@@ -166,7 +166,7 @@ class OverviewPage(QWidget):
                 social_summaries.append(f"{asset} {mean:+.2f} (n={len(values)})")
         self.social_sentiment_summary.setText(
             "Social: "
-            + (" · ".join(social_summaries) if social_summaries else "insufficient analyzed posts")
+            + (" Â· ".join(social_summaries) if social_summaries else "insufficient analyzed posts")
         )
         for table, ranked_events, field in (
             (self.importance_table, DashboardService.top_importance(snapshot.news), "importance"),
@@ -279,6 +279,71 @@ class SystemPage(QWidget):
                 self.table.setItem(row, column, QTableWidgetItem(value))
 
 
+class DataHealthPage(QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 20, 24, 24)
+        layout.addWidget(
+            SectionTitle("Data Operations", "Operational coverage is distinct from event count")
+        )
+        metrics = QHBoxLayout()
+        self.market = MetricCard("Market coverage")
+        self.news = MetricCard("News collector uptime")
+        self.social = MetricCard("Social collector uptime")
+        for card in (self.market, self.news, self.social):
+            metrics.addWidget(card)
+        layout.addLayout(metrics)
+        self.readiness = _table(["Feature group", "Status", "Reasons"])
+        layout.addWidget(self.readiness)
+        self.timeline = _table(["Source", "Recent operational timeline"])
+        layout.addWidget(self.timeline)
+        self.counts = _table(["Table", "Rows"])
+        layout.addWidget(self.counts)
+
+    def update_snapshot(self, snapshot: DashboardSnapshot) -> None:
+        health = snapshot.data_health
+        if health is None:
+            self.market.set_metric("N/A", "Database unavailable")
+            self.news.set_metric("N/A", "Unknown, not zero events")
+            self.social.set_metric("N/A", "Unknown, not zero events")
+            return
+        self.market.set_metric(
+            format_percent(Decimal(str(health.market_coverage)))
+            if health.market_coverage is not None
+            else "N/A",
+            "Missing candles: "
+            f"{health.missing_candles if health.missing_candles is not None else 'N/A'}",
+        )
+        self.news.set_metric(
+            format_percent(Decimal(str(health.news_uptime)))
+            if health.news_uptime is not None
+            else "N/A",
+            "Operational time",
+        )
+        self.social.set_metric(
+            format_percent(Decimal(str(health.social_uptime)))
+            if health.social_uptime is not None
+            else "N/A",
+            "Operational time",
+        )
+        self.readiness.setRowCount(len(health.readiness))
+        for row, (name, ready, reasons) in enumerate(health.readiness):
+            for column, value in enumerate(
+                (name, "READY" if ready else "NOT READY", ", ".join(reasons) or "All checks pass")
+            ):
+                self.readiness.setItem(row, column, QTableWidgetItem(value))
+        self.timeline.setRowCount(len(health.timeline))
+        for row, (name, value) in enumerate(health.timeline):
+            self.timeline.setItem(row, 0, QTableWidgetItem(name))
+            self.timeline.setItem(row, 1, QTableWidgetItem(value or "No observations"))
+        items = sorted(health.table_counts.items())
+        self.counts.setRowCount(len(items))
+        for row, (name, count_value) in enumerate(items):
+            self.counts.setItem(row, 0, QTableWidgetItem(name))
+            self.counts.setItem(row, 1, QTableWidgetItem(str(count_value)))
+
+
 class SettingsPage(QWidget):
     def __init__(self) -> None:
         super().__init__()
@@ -287,7 +352,7 @@ class SettingsPage(QWidget):
         layout.addWidget(
             SectionTitle("Settings", "Local dashboard preferences and safe configuration")
         )
-        warning = QLabel("PAPER TRADING ONLY · There is no real-trading mode")
+        warning = QLabel("PAPER TRADING ONLY Â· There is no real-trading mode")
         warning.setObjectName("paperBadge")
         layout.addWidget(warning, alignment=Qt.AlignmentFlag.AlignLeft)
         groups = QHBoxLayout()
@@ -324,7 +389,7 @@ class MLResearchPage(QWidget):
         layout.addWidget(self.dataset)
         layout.addWidget(QLabel("XGBOOST FEATURE GROUP COMPARISON"))
         self.models = _table(
-            ["Model", "Features", "MAE", "RMSE", "R²", "Pearson", "Spearman", "Direction"]
+            ["Model", "Features", "MAE", "RMSE", "RÂ²", "Pearson", "Spearman", "Direction"]
         )
         layout.addWidget(self.models)
         layout.addWidget(QLabel("TOP MODEL-DERIVED FEATURE IMPORTANCE (GAIN, NOT CAUSALITY)"))
@@ -351,10 +416,10 @@ class MLResearchPage(QWidget):
             self.scatter_chart.clear()
             return
         self.dataset.setText(
-            f"{research.market} · {research.interval} · {research.target} · "
-            f"{research.start_time:%Y-%m-%d} — {research.end_time:%Y-%m-%d} · "
-            f"dataset {research.dataset_id[:8]} · rows {research.row_count or 'N/A'} · "
-            f"news {_number(research.news_coverage)} · social {_number(research.social_coverage)}"
+            f"{research.market} Â· {research.interval} Â· {research.target} Â· "
+            f"{research.start_time:%Y-%m-%d} â€” {research.end_time:%Y-%m-%d} Â· "
+            f"dataset {research.dataset_id[:8]} Â· rows {research.row_count or 'N/A'} Â· "
+            f"news {_number(research.news_coverage)} Â· social {_number(research.social_coverage)}"
         )
         self.models.setRowCount(len(research.models))
         importance: list[tuple[str, str, float]] = []
@@ -425,10 +490,10 @@ class DashboardPages:
                 "Assets",
                 "Sentiment",
                 "Relevance",
-                "Importance · ONLINE",
-                "Event type · ONLINE",
-                "Novelty · ONLINE",
-                "Impact · RETROSPECTIVE",
+                "Importance Â· ONLINE",
+                "Event type Â· ONLINE",
+                "Novelty Â· ONLINE",
+                "Impact Â· RETROSPECTIVE",
                 "Maturity",
             ],
             "No news collected yet. Dashboard never scrapes sources directly.",
@@ -459,13 +524,13 @@ class DashboardPages:
                 "Received",
                 "Preview",
                 "Asset",
-                "Relevance · ONLINE",
-                "Sentiment · ONLINE",
-                "Importance · ONLINE",
-                "Novelty · ONLINE",
-                "Influence · ONLINE",
+                "Relevance Â· ONLINE",
+                "Sentiment Â· ONLINE",
+                "Importance Â· ONLINE",
+                "Novelty Â· ONLINE",
+                "Influence Â· ONLINE",
                 "Event type",
-                "Impact · RETROSPECTIVE",
+                "Impact Â· RETROSPECTIVE",
             ],
             "No persisted social posts. Configure X access and tracked accounts to collect.",
         )
@@ -503,7 +568,7 @@ class DashboardPages:
             ["Time", "Bot", "Market", "Action", "Requested size", "Confidence", "Price"],
             "No recorded bot decisions available.",
         )
-        self.data = SystemPage()
+        self.data = DataHealthPage()
         self.ml_research = MLResearchPage()
         self.training = self._training_page()
         self.system = SystemPage()
@@ -678,7 +743,7 @@ class DashboardPages:
             [
                 item.name,
                 ", ".join(item.markets),
-                f"{item.start_period:%Y-%m-%d} — {item.end_period:%Y-%m-%d}",
+                f"{item.start_period:%Y-%m-%d} â€” {item.end_period:%Y-%m-%d}",
                 "See participants",
                 format_money(item.starting_balance),
                 item.status.upper(),

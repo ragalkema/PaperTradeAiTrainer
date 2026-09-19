@@ -9,6 +9,8 @@ from data_collector.infrastructure.persistence import (
     SqlAlchemySocialRepository,
 )
 from data_collector.infrastructure.persistence.session import data_collector_session_factory
+from data_operations.infrastructure.repository import SqlAlchemyOperationsRepository
+from data_operations.infrastructure.session import operations_session_factory
 from paper_trading.infrastructure.persistence import SqlAlchemyResearchRepository
 from paper_trading.infrastructure.persistence.session import async_session_factory
 from PySide6.QtGui import QIcon
@@ -36,7 +38,10 @@ def create_window() -> MainWindow:
     research = SqlAlchemyResearchRepository(async_session_factory)
     news = SqlAlchemyNewsRepository(data_collector_session_factory)
     social = SqlAlchemySocialRepository(data_collector_session_factory)
-    repository = LiveDashboardRepository(research=research, news=news, social=social)
+    operations = SqlAlchemyOperationsRepository(operations_session_factory)
+    repository = LiveDashboardRepository(
+        research=research, news=news, social=social, operations=operations
+    )
     return MainWindow(repository.refresh, repository.snapshot())
 
 
