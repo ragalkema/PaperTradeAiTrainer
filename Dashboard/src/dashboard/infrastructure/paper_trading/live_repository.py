@@ -44,6 +44,7 @@ from dashboard.application.view_models import (
     SessionSummary,
     TradeSummary,
 )
+from dashboard.market_catalog import MARKET_SYMBOLS
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +82,7 @@ class LiveDashboardRepository:
 
     def __init__(
         self,
-        markets: tuple[str, ...] = ("BTC-EUR", "ETH-EUR", "SOL-EUR"),
+        markets: tuple[str, ...] = MARKET_SYMBOLS,
         research: ResearchQueryPort | None = None,
         news: DashboardNewsQueryPort | None = None,
         social: DashboardSocialQueryPort | None = None,

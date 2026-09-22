@@ -26,6 +26,7 @@ from dashboard.application.services.dashboard_service import (
     format_score,
 )
 from dashboard.application.view_models import DashboardSnapshot, IntelligenceEvent, MarketSummary
+from dashboard.market_catalog import FEATURED_MARKETS, MARKET_SYMBOLS, TRACKED_ASSETS
 from dashboard.presentation.charts import MarketChart
 from dashboard.presentation.widgets import Card, EmptyState, MetricCard, SectionTitle
 
@@ -55,6 +56,21 @@ def _page(title: str, subtitle: str) -> tuple[QWidget, QVBoxLayout]:
     return container, layout
 
 
+def _sentiment_summary(
+    events: tuple[IntelligenceEvent, ...], assets: tuple[str, ...]
+) -> str | None:
+    """Describe only assets backed by analyzed observations."""
+    summaries: list[str] = []
+    for asset in assets:
+        values = [
+            item.sentiment for item in events if asset in item.assets and item.sentiment is not None
+        ]
+        if values:
+            mean = sum(values, start=Decimal(0)) / len(values)
+            summaries.append(f"{asset} {mean:+.2f} (n={len(values)})")
+    return " / ".join(summaries) if summaries else None
+
+
 class OverviewPage(QWidget):
     def __init__(self) -> None:
         super().__init__()
@@ -76,7 +92,7 @@ class OverviewPage(QWidget):
         layout.addLayout(metrics)
         market_row = QHBoxLayout()
         self.market_cards: dict[str, MetricCard] = {}
-        for market in ("BTC-EUR", "ETH-EUR", "SOL-EUR"):
+        for market in FEATURED_MARKETS:
             card = MetricCard(market.replace("-", "/"), "N/A", "Waiting for market data")
             self.market_cards[market] = card
             market_row.addWidget(card)
@@ -146,32 +162,11 @@ class OverviewPage(QWidget):
             )
             for column, value in enumerate(impact_values):
                 self.impact_table.setItem(row, column, QTableWidgetItem(value))
-        summaries = []
-        for asset in ("BTC", "ETH", "SOL"):
-            sentiment_values = [
-                item.sentiment
-                for item in snapshot.news
-                if asset in item.assets and item.sentiment is not None
-            ]
-            if sentiment_values:
-                mean = sum(sentiment_values, start=sentiment_values[0] * 0) / len(sentiment_values)
-                summaries.append(f"{asset} {mean:+.2f} (n={len(sentiment_values)})")
-        self.sentiment_summary.setText(
-            "  /  ".join(summaries) if summaries else "Insufficient analyzed news"
-        )
-        social_summaries = []
-        for asset in ("BTC", "ETH", "SOL"):
-            values = [
-                item.sentiment
-                for item in snapshot.social
-                if asset in item.assets and item.sentiment is not None
-            ]
-            if values:
-                mean = sum(values, start=values[0] * 0) / len(values)
-                social_summaries.append(f"{asset} {mean:+.2f} (n={len(values)})")
+        news_summary = _sentiment_summary(snapshot.news, TRACKED_ASSETS)
+        self.sentiment_summary.setText(news_summary or "Insufficient analyzed news")
+        social_summary = _sentiment_summary(snapshot.social, TRACKED_ASSETS)
         self.social_sentiment_summary.setText(
-            "Social: "
-            + (" / ".join(social_summaries) if social_summaries else "insufficient analyzed posts")
+            "Social: " + (social_summary or "insufficient analyzed posts")
         )
         for table, ranked_events, field in (
             (self.importance_table, DashboardService.top_importance(snapshot.news), "importance"),
@@ -197,7 +192,7 @@ class MarketsPage(QWidget):
         layout.addWidget(SectionTitle("Markets", "Public observations; no exchange order access"))
         controls = QHBoxLayout()
         self.selector = QComboBox()
-        self.selector.addItems(["BTC-EUR", "ETH-EUR", "SOL-EUR"])
+        self.selector.addItems(MARKET_SYMBOLS)
         self.timeframe = QComboBox()
         self.timeframe.addItems(["1h (live)", "1m", "5m", "15m", "4h", "1d"])
         for index in range(1, self.timeframe.count()):
@@ -518,7 +513,7 @@ class DashboardPages:
         news_filters = QWidget()
         news_filter_layout = QHBoxLayout(news_filters)
         self.news_asset_filter = QComboBox()
-        self.news_asset_filter.addItems(["All assets", "BTC", "ETH", "SOL"])
+        self.news_asset_filter.addItems(["All assets", *TRACKED_ASSETS])
         self.news_type_filter = QComboBox()
         self.news_type_filter.addItems(["All event types"])
         self.news_sentiment_filter = QComboBox()

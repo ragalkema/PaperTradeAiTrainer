@@ -5,6 +5,7 @@ DARK_STYLESHEET = """
 QMainWindow, QWidget { background: #0b0e14; }
 QLabel { background: transparent; }
 QFrame#sidebar { background: #10141d; border-right: 1px solid #242a36; }
+QScrollArea#navScroll, QWidget#navContainer { background: #10141d; border: 0; }
 QFrame#topbar { background: #10141d; border-bottom: 1px solid #242a36; }
 QLabel#brand { font-size: 18px; font-weight: 750; letter-spacing: 1px; color: #ffffff; }
 QLabel#brandDetail { font-size: 10px; font-weight: 700; letter-spacing: 2px; color: #728096; }
@@ -27,6 +28,7 @@ QPushButton#nav:checked { background: #202a3a; color: #ffffff; border-left: 3px 
 QPushButton { background: #1a2230; border: 1px solid #303b4d; border-radius: 6px;
   padding: 8px 13px; font-weight: 600; }
 QPushButton:hover { background: #232e40; border-color: #44536b; }
+QPushButton#chartReset { padding: 5px 10px; font-size: 11px; }
 QPushButton:disabled { color: #525b69; background: #121722; border-color: #222936; }
 QFrame#card { background: #121720; border: 1px solid #252c38; border-radius: 8px; }
 QFrame#card:hover { border-color: #343e4e; }

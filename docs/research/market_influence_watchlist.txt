@@ -1,0 +1,93 @@
+MARKTINTELLIGENTIE-WATCHLIST: 50 PERSONEN OP X EN 10 NIEUWSBRONNEN
+Versie: 2026-09-22
+
+Doel en methode
+---------------
+Dit is een handmatig samengestelde monitoringlijst, geen objectieve ranglijst en geen
+beleggingsadvies. De selectie combineert potentiele marktimpact, beleidsinvloed,
+protocol-/exchangeleiderschap, institutionele analyse, on-chain analyse en bereik.
+Een groot bereik is niet hetzelfde als betrouwbaarheid. Berichten moeten als
+onbevestigde signalen worden behandeld en onafhankelijk worden geverifieerd.
+
+50 invloedrijke individuen op X/Twitter
+---------------------------------------
+01. Elon Musk              @elonmusk          - Groot bereik; eerdere crypto-marktreacties
+02. Donald Trump           @realDonaldTrump   - Amerikaans beleid en crypto-uitingen
+03. Michael Saylor         @saylor            - Corporate Bitcoin-adoptie
+04. Vitalik Buterin        @VitalikButerin    - Ethereum-oprichter en protocolvisie
+05. Changpeng Zhao         @cz_binance        - Binance-oprichter; brede exchange-invloed
+06. Brian Armstrong        @brian_armstrong   - Coinbase CEO en reguleringsdebat
+07. Cathie Wood            @CathieDWood       - Institutionele crypto- en ETF-theses
+08. Jack Dorsey            @jack              - Bitcoin- en betalingsinfrastructuur
+09. Arthur Hayes           @CryptoHayes       - Macro- en cryptomarktcommentaar
+10. Justin Sun             @justinsuntron     - TRON-oprichter en grote marktdeelnemer
+11. Brad Garlinghouse      @bgarlinghouse     - Ripple CEO en XRP/regulering
+12. Charles Hoskinson      @IOHK_Charles      - Cardano-oprichter
+13. Anatoly Yakovenko      @aeyakovenko       - Solana-medeoprichter
+14. Raj Gokal              @rajgokal          - Solana-medeoprichter
+15. Gavin Wood             @gavofyork         - Polkadot- en Ethereum-medeoprichter
+16. Hayden Adams           @haydenzadams      - Uniswap-oprichter en DeFi
+17. Stani Kulechov         @StaniKulechov     - Aave-oprichter en DeFi
+18. Andre Cronje           @AndreCronjeTech   - DeFi-protocolbouwer
+19. Rune Christensen       @RuneKek           - MakerDAO/Sky-oprichter
+20. Paolo Ardoino          @paoloardoino      - Tether CEO en stablecoin-infrastructuur
+21. Jeremy Allaire         @jerallaire        - Circle CEO en USDC
+22. David Marcus           @davidmarcus       - Lightspark CEO; Bitcoin-betalingen
+23. Balaji Srinivasan      @balajis           - Investeerder en technologiecommentator
+24. Naval Ravikant         @naval             - Investeerder met groot cryptobereik
+25. Anthony Pompliano      @APompliano        - Bitcoin-investeerder en commentator
+26. Raoul Pal              @RaoulGMI          - Macro- en digitale-activa-analyse
+27. Lyn Alden              @LynAldenContact   - Macro- en Bitcoin-analyse
+28. Nic Carter             @nic__carter       - Bitcoin-/stablecoinonderzoeker en investeerder
+29. Willy Woo              @woonomic          - Bitcoin on-chain analyse
+30. Ki Young Ju            @ki_young_ju       - CryptoQuant CEO en on-chain analyse
+31. PlanB                  @100trillionUSD     - Kwantitatieve Bitcoin-modellen
+32. Peter Brandt           @PeterLBrandt      - Technische marktanalist
+33. Peter Schiff           @PeterSchiff       - Invloedrijke crypto-sceptische macrovisie
+34. Erik Voorhees          @ErikVoorhees      - ShapeShift-oprichter
+35. Jesse Powell           @jespow            - Kraken-medeoprichter
+36. Cameron Winklevoss     @cameron           - Gemini-medeoprichter
+37. Tyler Winklevoss       @tyler             - Gemini-medeoprichter
+38. Tim Draper             @TimDraper         - Venture-investeerder en Bitcoinvoorstander
+39. Barry Silbert          @BarrySilbert      - Digital Currency Group-oprichter
+40. Chris Burniske         @cburniske         - Crypto-investeerder en onderzoeker
+41. Ari Paul               @AriDavidPaul      - BlockTower CIO
+42. Ryan Selkis            @twobitidiot       - Messari-oprichter
+43. Hasu                   @hasufl            - Protocolonderzoeker en strateeg
+44. Cobie                  @cobie             - Marktcommentator en investeerder
+45. ZachXBT                @zachxbt           - On-chain fraude- en securityonderzoeker
+46. Eric Balchunas         @EricBalchunas     - Bloomberg ETF-analist
+47. James Seyffart         @JSeyff            - Bloomberg ETF-analist
+48. Eleanor Terrett        @EleanorTerrett    - Journalist over crypto en regulering
+49. Colin Wu               @WuBlockchain      - Aziatische cryptomarktjournalist
+50. Scott Melker           @scottmelker       - Trader en marktcommentator
+
+10 grote nieuwsorganisaties voor cryptomarktmonitoring
+------------------------------------------------------
+01. Reuters                @Reuters            - Snel, internationaal en regulering/macro
+02. Bloomberg              @business           - Institutionele markten, ETF's en macro
+03. Financial Times        @FT                 - Financiele markten en diepgravende analyse
+04. CNBC                   @CNBC               - Snelle markt- en beleidsverslaggeving
+05. CoinDesk               @CoinDesk           - Gespecialiseerde crypto-industriejournalistiek
+06. Cointelegraph          @Cointelegraph      - Groot internationaal cryptonieuwsbereik
+07. The Block              @TheBlock__         - Crypto-bedrijven, data en beleid
+08. Blockworks             @Blockworks_        - Institutionele crypto en podcasts/research
+09. DL News                @DLNewsInfo         - DeFi, regulering en onderzoeksjournalistiek
+10. Decrypt                @decryptmedia       - Crypto, Web3 en technologie
+
+Onderhoudsadvies
+---------------
+- Controleer handles elk kwartaal; namen, rollen en accounts kunnen veranderen.
+- Sla received_at apart van published_at op om look-ahead bias te voorkomen.
+- Geef primaire bronnen en betrouwbare journalistiek meer gewicht dan bereik.
+- Detecteer duplicaten, reposts, betaalde promotie, bots en gehackte accounts.
+- Gebruik geen enkel bericht rechtstreeks als koop- of verkoopsignaal.
+
+Gebruikte openbare referenties (geraadpleegd 2026-09-22)
+--------------------------------------------------------
+https://twitterscore.io/topScored/
+https://www.coindesk.com/consensus-magazine/most-influential/
+https://capital.com/en-eu/analysis/top-crypto-traders-to-follow
+https://awisee.com/blog/top-crypto-x-accounts/
+https://bitvavo.com/en/markets/recently-added
+https://api.bitvavo.com/v2/ticker/24h

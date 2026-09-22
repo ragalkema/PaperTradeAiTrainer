@@ -3,13 +3,14 @@
 import logging
 from collections.abc import Callable
 
-from PySide6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Signal, Slot
+from PySide6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTimer, Signal, Slot
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
     QMainWindow,
     QPushButton,
+    QScrollArea,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -77,7 +78,18 @@ class MainWindow(QMainWindow):
         brand_detail = QLabel("RESEARCH TERMINAL")
         brand_detail.setObjectName("brandDetail")
         sidebar_layout.addWidget(brand_detail)
-        sidebar_layout.addSpacing(26)
+        sidebar_layout.addSpacing(14)
+
+        nav_scroll = QScrollArea()
+        nav_scroll.setObjectName("navScroll")
+        nav_scroll.setWidgetResizable(True)
+        nav_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        nav_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        nav_container = QWidget()
+        nav_container.setObjectName("navContainer")
+        nav_layout = QVBoxLayout(nav_container)
+        nav_layout.setContentsMargins(0, 0, 4, 0)
+        nav_layout.setSpacing(3)
 
         self.stack = QStackedWidget()
         self.nav_buttons: list[QPushButton] = []
@@ -92,15 +104,17 @@ class MainWindow(QMainWindow):
             if section := sections.get(name):
                 section_label = QLabel(section)
                 section_label.setObjectName("navSection")
-                sidebar_layout.addWidget(section_label)
+                nav_layout.addWidget(section_label)
             button = QPushButton(name)
             button.setObjectName("nav")
             button.setCheckable(True)
             button.clicked.connect(lambda checked=False, position=index: self.navigate(position))
-            sidebar_layout.addWidget(button)
+            nav_layout.addWidget(button)
             self.nav_buttons.append(button)
             self.stack.addWidget(page)
-        sidebar_layout.addStretch()
+        nav_layout.addStretch()
+        nav_scroll.setWidget(nav_container)
+        sidebar_layout.addWidget(nav_scroll, 1)
         safety = QLabel("PAPER TRADING ONLY")
         safety.setObjectName("paperBadge")
         sidebar_layout.addWidget(safety)
