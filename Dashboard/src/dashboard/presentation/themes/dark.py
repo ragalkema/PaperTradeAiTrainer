@@ -3,6 +3,7 @@
 DARK_STYLESHEET = """
 * { font-family: "Segoe UI", sans-serif; font-size: 13px; color: #dfe5ee; }
 QMainWindow, QWidget { background: #0b0e14; }
+QLabel { background: transparent; }
 QFrame#sidebar { background: #10141d; border-right: 1px solid #242a36; }
 QFrame#topbar { background: #10141d; border-bottom: 1px solid #242a36; }
 QLabel#brand { font-size: 18px; font-weight: 750; letter-spacing: 1px; color: #ffffff; }
