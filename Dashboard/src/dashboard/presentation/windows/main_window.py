@@ -45,8 +45,8 @@ class MainWindow(QMainWindow):
     ) -> None:
         super().__init__()
         self.setWindowTitle("PaperTrade AI Trainer")
-        self.setMinimumSize(1060, 700)
-        self.resize(1440, 900)
+        self.setMinimumSize(1180, 760)
+        self.resize(1540, 940)
         self._refresh = refresh
         self._refreshing = False
         self._pool = QThreadPool.globalInstance()
@@ -67,17 +67,32 @@ class MainWindow(QMainWindow):
 
         sidebar = QFrame()
         sidebar.setObjectName("sidebar")
-        sidebar.setFixedWidth(190)
+        sidebar.setFixedWidth(224)
         sidebar_layout = QVBoxLayout(sidebar)
-        sidebar_layout.setContentsMargins(14, 18, 14, 18)
-        brand = QLabel("PAPERTRADE\nAI TRAINER")
+        sidebar_layout.setContentsMargins(16, 22, 16, 18)
+        sidebar_layout.setSpacing(3)
+        brand = QLabel("PAPERTRADE AI")
         brand.setObjectName("brand")
         sidebar_layout.addWidget(brand)
-        sidebar_layout.addSpacing(24)
+        brand_detail = QLabel("RESEARCH TERMINAL")
+        brand_detail.setObjectName("brandDetail")
+        sidebar_layout.addWidget(brand_detail)
+        sidebar_layout.addSpacing(26)
 
         self.stack = QStackedWidget()
         self.nav_buttons: list[QPushButton] = []
+        sections = {
+            "Overview": "WORKSPACE",
+            "News": "INTELLIGENCE",
+            "Trades": "PAPER PORTFOLIO",
+            "Data": "RESEARCH",
+            "System": "APPLICATION",
+        }
         for index, (name, page) in enumerate(self.pages.items):
+            if section := sections.get(name):
+                section_label = QLabel(section)
+                section_label.setObjectName("navSection")
+                sidebar_layout.addWidget(section_label)
             button = QPushButton(name)
             button.setObjectName("nav")
             button.setCheckable(True)
@@ -86,7 +101,7 @@ class MainWindow(QMainWindow):
             self.nav_buttons.append(button)
             self.stack.addWidget(page)
         sidebar_layout.addStretch()
-        safety = QLabel("PAPER MODE")
+        safety = QLabel("PAPER TRADING ONLY")
         safety.setObjectName("paperBadge")
         sidebar_layout.addWidget(safety)
         outer.addWidget(sidebar)
@@ -97,9 +112,17 @@ class MainWindow(QMainWindow):
         topbar = QFrame()
         topbar.setObjectName("topbar")
         topbar_layout = QHBoxLayout(topbar)
-        topbar_layout.setContentsMargins(20, 10, 20, 10)
-        self.connection = QLabel("● CONNECTING")
-        self.connection.setObjectName("muted")
+        topbar_layout.setContentsMargins(26, 0, 26, 0)
+        topbar.setFixedHeight(58)
+        self.breadcrumb = QLabel("Overview")
+        self.breadcrumb.setObjectName("breadcrumb")
+        workspace = QLabel("BTC / EUR  |  PAPER RESEARCH")
+        workspace.setObjectName("workspace")
+        topbar_layout.addWidget(self.breadcrumb)
+        topbar_layout.addSpacing(18)
+        topbar_layout.addWidget(workspace)
+        self.connection = QLabel("CONNECTING")
+        self.connection.setObjectName("connectionState")
         self.last_update = QLabel("Waiting for first update")
         self.last_update.setObjectName("muted")
         topbar_layout.addStretch()
@@ -118,6 +141,7 @@ class MainWindow(QMainWindow):
 
     def navigate(self, index: int) -> None:
         self.stack.setCurrentIndex(index)
+        self.breadcrumb.setText(self.pages.items[index][0])
         for position, button in enumerate(self.nav_buttons):
             button.setChecked(position == index)
 
@@ -139,12 +163,12 @@ class MainWindow(QMainWindow):
     def _apply_snapshot(self, snapshot: DashboardSnapshot) -> None:
         self.pages.update_snapshot(snapshot)
         state = snapshot.connections.get("Bitvavo")
-        self.connection.setText(f"● {state or 'Not connected'}".upper())
+        self.connection.setText(str(state or "Not connected").upper())
         timestamps = [market.timestamp for market in snapshot.markets if market.timestamp]
         self.last_update.setText(
             f"Updated {max(timestamps):%H:%M:%S}" if timestamps else "Waiting for market data"
         )
-        self.error.setText(" · ".join(snapshot.errors))
+        self.error.setText("  /  ".join(snapshot.errors))
         self.error.setVisible(bool(snapshot.errors))
 
     def closeEvent(self, event: object) -> None:

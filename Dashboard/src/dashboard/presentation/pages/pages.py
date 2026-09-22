@@ -35,17 +35,22 @@ def _table(headers: list[str]) -> QTableWidget:
     table.setHorizontalHeaderLabels(headers)
     table.horizontalHeader().setStretchLastSection(True)
     table.setAlternatingRowColors(True)
+    table.setShowGrid(False)
+    table.setWordWrap(False)
     table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+    table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
     table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
     table.verticalHeader().hide()
+    table.verticalHeader().setDefaultSectionSize(38)
+    table.horizontalHeader().setMinimumSectionSize(90)
     return table
 
 
 def _page(title: str, subtitle: str) -> tuple[QWidget, QVBoxLayout]:
     container = QWidget()
     layout = QVBoxLayout(container)
-    layout.setContentsMargins(24, 20, 24, 24)
-    layout.setSpacing(16)
+    layout.setContentsMargins(28, 24, 28, 28)
+    layout.setSpacing(18)
     layout.addWidget(SectionTitle(title, subtitle))
     return container, layout
 
@@ -54,8 +59,8 @@ class OverviewPage(QWidget):
     def __init__(self) -> None:
         super().__init__()
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 24)
-        layout.setSpacing(14)
+        layout.setContentsMargins(28, 24, 28, 28)
+        layout.setSpacing(16)
         layout.addWidget(SectionTitle("Overview", "Live research environment at a glance"))
         metrics = QGridLayout()
         self.capital = MetricCard("Total paper capital")
@@ -67,7 +72,7 @@ class OverviewPage(QWidget):
         for index, card in enumerate(
             [self.capital, self.pnl, self.best, self.regime, self.active, self.trades]
         ):
-            metrics.addWidget(card, index // 3, index % 3)
+            metrics.addWidget(card, 0, index)
         layout.addLayout(metrics)
         market_row = QHBoxLayout()
         self.market_cards: dict[str, MetricCard] = {}
@@ -81,23 +86,23 @@ class OverviewPage(QWidget):
         bots.content.addWidget(
             EmptyState("No bot results", "Run or load an experiment to compare bots.")
         )
-        intelligence = Card("Top market impact Â· last 24 hours")
+        intelligence = Card("Top market impact / last 24 hours")
         self.impact_table = _table(["Headline", "Asset", "Impact", "Maturity"])
         intelligence.content.addWidget(self.impact_table)
         lower.addWidget(bots, 3)
         lower.addWidget(intelligence, 2)
         layout.addLayout(lower, 1)
-        sentiment = Card("News sentiment Â· analyzed last 24 hours")
+        sentiment = Card("News sentiment / analyzed last 24 hours")
         self.sentiment_summary = QLabel("Insufficient analyzed news")
         sentiment.content.addWidget(self.sentiment_summary)
         self.social_sentiment_summary = QLabel("Social: insufficient analyzed posts")
         sentiment.content.addWidget(self.social_sentiment_summary)
         layout.addWidget(sentiment)
         online_rankings = QHBoxLayout()
-        important = Card("Most important news Â· ONLINE")
+        important = Card("Most important news / ONLINE")
         self.importance_table = _table(["Headline", "Asset", "Importance"])
         important.content.addWidget(self.importance_table)
-        relevant = Card("Most relevant Â· ONLINE")
+        relevant = Card("Most relevant / ONLINE")
         self.relevance_table = _table(["Headline", "Asset", "Relevance"])
         relevant.content.addWidget(self.relevance_table)
         online_rankings.addWidget(important)
@@ -128,7 +133,7 @@ class OverviewPage(QWidget):
             if card:
                 card.set_metric(
                     format_money(market.current_price),
-                    f"{format_percent(market.change_24h)} 24h Â· {market.state}",
+                    f"{format_percent(market.change_24h)} 24h / {market.state}",
                 )
         impact_events = DashboardService.top_intelligence(snapshot.news)
         self.impact_table.setRowCount(len(impact_events))
@@ -152,7 +157,7 @@ class OverviewPage(QWidget):
                 mean = sum(sentiment_values, start=sentiment_values[0] * 0) / len(sentiment_values)
                 summaries.append(f"{asset} {mean:+.2f} (n={len(sentiment_values)})")
         self.sentiment_summary.setText(
-            "  Â·  ".join(summaries) if summaries else "Insufficient analyzed news"
+            "  /  ".join(summaries) if summaries else "Insufficient analyzed news"
         )
         social_summaries = []
         for asset in ("BTC", "ETH", "SOL"):
@@ -166,7 +171,7 @@ class OverviewPage(QWidget):
                 social_summaries.append(f"{asset} {mean:+.2f} (n={len(values)})")
         self.social_sentiment_summary.setText(
             "Social: "
-            + (" Â· ".join(social_summaries) if social_summaries else "insufficient analyzed posts")
+            + (" / ".join(social_summaries) if social_summaries else "insufficient analyzed posts")
         )
         for table, ranked_events, field in (
             (self.importance_table, DashboardService.top_importance(snapshot.news), "importance"),
@@ -187,7 +192,8 @@ class MarketsPage(QWidget):
     def __init__(self) -> None:
         super().__init__()
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 24)
+        layout.setContentsMargins(28, 24, 28, 28)
+        layout.setSpacing(16)
         layout.addWidget(SectionTitle("Markets", "Public observations; no exchange order access"))
         controls = QHBoxLayout()
         self.selector = QComboBox()
@@ -211,10 +217,16 @@ class MarketsPage(QWidget):
             stats.addWidget(card)
         layout.addLayout(stats)
         self.chart = MarketChart()
-        layout.addWidget(self.chart, 1)
+        chart_card = Card("Price chart / public market data")
+        chart_card.content.addWidget(self.chart)
+        layout.addWidget(chart_card, 1)
         related = QHBoxLayout()
-        related.addWidget(Card("Related news"))
-        related.addWidget(Card("Related social posts"))
+        related_news = Card("Related news")
+        related_news.content.addWidget(QLabel("No market-linked headlines in the current window"))
+        related_social = Card("Related social posts")
+        related_social.content.addWidget(QLabel("No market-linked posts in the current window"))
+        related.addWidget(related_news)
+        related.addWidget(related_social)
         layout.addLayout(related)
         self._snapshot = DashboardSnapshot()
         self.selector.currentTextChanged.connect(lambda _: self._render())
@@ -244,7 +256,8 @@ class TablePage(QWidget):
         super().__init__()
         layout = QVBoxLayout(self)
         self.content_layout = layout
-        layout.setContentsMargins(24, 20, 24, 24)
+        layout.setContentsMargins(28, 24, 28, 28)
+        layout.setSpacing(16)
         layout.addWidget(SectionTitle(title, subtitle))
         self.table = _table(headers)
         layout.addWidget(self.table, 1)
@@ -258,7 +271,8 @@ class SystemPage(QWidget):
     def __init__(self) -> None:
         super().__init__()
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 24)
+        layout.setContentsMargins(28, 24, 28, 28)
+        layout.setSpacing(16)
         layout.addWidget(SectionTitle("System", "Connection state and data health"))
         self.table = _table(["Data source", "State", "Last event", "Notes"])
         layout.addWidget(self.table)
@@ -283,7 +297,8 @@ class DataHealthPage(QWidget):
     def __init__(self) -> None:
         super().__init__()
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 24)
+        layout.setContentsMargins(28, 24, 28, 28)
+        layout.setSpacing(16)
         layout.addWidget(
             SectionTitle("Data Operations", "Operational coverage is distinct from event count")
         )
@@ -348,11 +363,12 @@ class SettingsPage(QWidget):
     def __init__(self) -> None:
         super().__init__()
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 24)
+        layout.setContentsMargins(28, 24, 28, 28)
+        layout.setSpacing(16)
         layout.addWidget(
             SectionTitle("Settings", "Local dashboard preferences and safe configuration")
         )
-        warning = QLabel("PAPER TRADING ONLY Â· There is no real-trading mode")
+        warning = QLabel("PAPER TRADING ONLY / There is no real-trading mode")
         warning.setObjectName("paperBadge")
         layout.addWidget(warning, alignment=Qt.AlignmentFlag.AlignLeft)
         groups = QHBoxLayout()
@@ -380,7 +396,8 @@ class MLResearchPage(QWidget):
     def __init__(self) -> None:
         super().__init__()
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 24)
+        layout.setContentsMargins(28, 24, 28, 28)
+        layout.setSpacing(16)
         layout.addWidget(
             SectionTitle("ML Research", "Point-in-time out-of-sample feature comparison")
         )
@@ -389,7 +406,7 @@ class MLResearchPage(QWidget):
         layout.addWidget(self.dataset)
         layout.addWidget(QLabel("XGBOOST FEATURE GROUP COMPARISON"))
         self.models = _table(
-            ["Model", "Features", "MAE", "RMSE", "RÂ²", "Pearson", "Spearman", "Direction"]
+            ["Model", "Features", "MAE", "RMSE", "R2", "Pearson", "Spearman", "Direction"]
         )
         layout.addWidget(self.models)
         layout.addWidget(QLabel("TOP MODEL-DERIVED FEATURE IMPORTANCE (GAIN, NOT CAUSALITY)"))
@@ -416,10 +433,10 @@ class MLResearchPage(QWidget):
             self.scatter_chart.clear()
             return
         self.dataset.setText(
-            f"{research.market} Â· {research.interval} Â· {research.target} Â· "
-            f"{research.start_time:%Y-%m-%d} â€” {research.end_time:%Y-%m-%d} Â· "
-            f"dataset {research.dataset_id[:8]} Â· rows {research.row_count or 'N/A'} Â· "
-            f"news {_number(research.news_coverage)} Â· social {_number(research.social_coverage)}"
+            f"{research.market} / {research.interval} / {research.target} / "
+            f"{research.start_time:%Y-%m-%d} - {research.end_time:%Y-%m-%d} / "
+            f"dataset {research.dataset_id[:8]} / rows {research.row_count or 'N/A'} / "
+            f"news {_number(research.news_coverage)} / social {_number(research.social_coverage)}"
         )
         self.models.setRowCount(len(research.models))
         importance: list[tuple[str, str, float]] = []
@@ -490,10 +507,10 @@ class DashboardPages:
                 "Assets",
                 "Sentiment",
                 "Relevance",
-                "Importance Â· ONLINE",
-                "Event type Â· ONLINE",
-                "Novelty Â· ONLINE",
-                "Impact Â· RETROSPECTIVE",
+                "Importance / ONLINE",
+                "Event type / ONLINE",
+                "Novelty / ONLINE",
+                "Impact / RETROSPECTIVE",
                 "Maturity",
             ],
             "No news collected yet. Dashboard never scrapes sources directly.",
@@ -524,13 +541,13 @@ class DashboardPages:
                 "Received",
                 "Preview",
                 "Asset",
-                "Relevance Â· ONLINE",
-                "Sentiment Â· ONLINE",
-                "Importance Â· ONLINE",
-                "Novelty Â· ONLINE",
-                "Influence Â· ONLINE",
+                "Relevance / ONLINE",
+                "Sentiment / ONLINE",
+                "Importance / ONLINE",
+                "Novelty / ONLINE",
+                "Influence / ONLINE",
                 "Event type",
-                "Impact Â· RETROSPECTIVE",
+                "Impact / RETROSPECTIVE",
             ],
             "No persisted social posts. Configure X access and tracked accounts to collect.",
         )
@@ -743,7 +760,7 @@ class DashboardPages:
             [
                 item.name,
                 ", ".join(item.markets),
-                f"{item.start_period:%Y-%m-%d} â€” {item.end_period:%Y-%m-%d}",
+                f"{item.start_period:%Y-%m-%d} - {item.end_period:%Y-%m-%d}",
                 "See participants",
                 format_money(item.starting_balance),
                 item.status.upper(),

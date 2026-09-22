@@ -9,8 +9,8 @@ class Card(QFrame):
         super().__init__(parent)
         self.setObjectName("card")
         self.content = QVBoxLayout(self)
-        self.content.setContentsMargins(16, 14, 16, 14)
-        self.content.setSpacing(10)
+        self.content.setContentsMargins(18, 16, 18, 16)
+        self.content.setSpacing(9)
         if title:
             label = QLabel(title.upper())
             label.setObjectName("cardTitle")
@@ -24,6 +24,7 @@ class MetricCard(Card):
         self.value.setObjectName("metric")
         self.note = QLabel(note)
         self.note.setObjectName("muted")
+        self.setMinimumHeight(104)
         self.content.addWidget(self.value)
         self.content.addWidget(self.note)
 
@@ -54,6 +55,7 @@ class SectionTitle(QWidget):
         super().__init__()
         row = QHBoxLayout(self)
         row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(4)
         labels = QVBoxLayout()
         heading = QLabel(title)
         heading.setObjectName("pageTitle")
