@@ -37,6 +37,7 @@ dev = [
   "ruff>=0.9,<1",
 ]
 ml = [
+  "optuna>=4.5,<5",
   "scikit-learn>=1.6,<2",
   "xgboost>=3.0,<4",
 ]

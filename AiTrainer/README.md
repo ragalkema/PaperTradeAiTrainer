@@ -28,3 +28,26 @@ python -m ai_trainer compare-feature-groups --market BTC-EUR --interval 1h --tar
 
 Use `--synthetic` only to validate pipeline mechanics. Synthetic output is explicitly labelled
 `PIPELINE_VALIDATION` and is never a financial research conclusion. No RL or real trading exists.
+
+## Local ML artifacts
+
+Training output is intentionally kept out of Git and can be inspected in these repository-root
+directories:
+
+- `data/features/<dataset-id>/dataset.npz`: the exact feature matrix, timestamps and targets.
+- `data/features/<dataset-id>/metadata.json`: market, period, feature versions and fingerprint.
+- `data/features/<dataset-id>/validation.json`: integrity and leakage-validation results.
+- `models/trained/<model-id>.json`: native XGBoost model artifacts, loadable with XGBoost.
+- `experiments/results/<comparison-id>.json`: metrics, feature importance and provenance for every
+  feature-group comparison.
+- `experiments/optuna/`: reserved for local Optuna studies. For persistent tuning, use for example
+  `sqlite:///experiments/optuna/studies.db`; database files are ignored by Git.
+
+Install the complete research environment, including XGBoost and Optuna, with:
+
+```powershell
+python -m pip install -e ".[dev,ml]"
+```
+
+Optuna is available as a dependency for a future tuning command; normal comparison runs remain
+deterministic and do not start an Optuna study implicitly.
