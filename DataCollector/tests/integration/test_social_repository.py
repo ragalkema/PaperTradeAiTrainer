@@ -44,6 +44,8 @@ async def _roundtrip() -> None:
         created,
     )
     await repo.add_account(account)
+    await repo.add_account(account)
+    assert await repo.tracked_accounts() == (account,)
     raw = RawSocialPost(
         uuid4(), "x", "10", "1", "alice", "$BTC bullish", created, received, "a" * 64
     )

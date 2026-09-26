@@ -65,6 +65,9 @@ data/features/**
 data/experiments/**
 !data/experiments/
 !data/experiments/.gitkeep
+data/reference/**
+!data/reference/
+!data/reference/.gitkeep
 
 # Model and experiment artifacts (keep documentation)
 models/checkpoints/**

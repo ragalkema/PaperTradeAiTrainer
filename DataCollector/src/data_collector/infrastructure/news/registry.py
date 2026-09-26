@@ -31,6 +31,40 @@ DEFAULT_SOURCES = (
         300,
         "https://www.theblock.co/rss.xml",
     ),
+    NewsSource(
+        "newsbtc", "NewsBTC", NewsSourceKind.RSS, True, 65, 300, "https://www.newsbtc.com/feed/"
+    ),
+    NewsSource(
+        "blockworks", "Blockworks", NewsSourceKind.RSS, True, 65, 300, "https://blockworks.com/feed"
+    ),
+    NewsSource(
+        "dlnews",
+        "DL News",
+        NewsSourceKind.RSS,
+        True,
+        65,
+        300,
+        "https://www.dlnews.com/arc/outboundfeeds/rss/",
+    ),
+    NewsSource(
+        "bitcoincom",
+        "Bitcoin.com News",
+        NewsSourceKind.RSS,
+        True,
+        55,
+        300,
+        "https://news.bitcoin.com/feed/",
+    ),
+    NewsSource("utoday", "U.Today", NewsSourceKind.RSS, True, 50, 300, "https://u.today/rss.php"),
+    NewsSource(
+        "cryptopotato",
+        "CryptoPotato",
+        NewsSourceKind.RSS,
+        True,
+        50,
+        300,
+        "https://cryptopotato.com/feed/",
+    ),
 )
 
 

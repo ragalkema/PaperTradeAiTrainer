@@ -13,6 +13,8 @@ class DataCollectorSettings(BaseSettings):
     news_future_tolerance_minutes: int = 10
     news_query_limit: int = 200
     x_api_bearer_token: str | None = None
+    openai_api_key: str | None = None
+    openai_relevance_model: str = "gpt-4o-mini"
     market_poll_seconds: int = 60
     news_poll_seconds: int = 300
     social_poll_seconds: int = 900

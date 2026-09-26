@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import overload
 from uuid import NAMESPACE_URL, UUID, uuid5
 
-from sqlalchemy import and_, desc, exists, select, update
+from sqlalchemy import and_, desc, exists, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -139,7 +139,10 @@ class SqlAlchemyNewsRepository:
         query = (
             select(NewsEventModel)
             .where(
-                ~exists().where(NewsIntelligenceModel.news_event_id == NewsEventModel.news_event_id)
+                func.json_array_length(NewsEventModel.mentioned_assets) > 0,
+                ~exists().where(
+                    NewsIntelligenceModel.news_event_id == NewsEventModel.news_event_id
+                ),
             )
             .order_by(NewsEventModel.received_at, NewsEventModel.news_event_id)
             .limit(limit)

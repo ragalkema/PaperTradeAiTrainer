@@ -52,11 +52,14 @@ class SqlAlchemySocialRepository:
 
     async def add_account(self, value: TrackedSocialAccount) -> None:
         async with self._sessions.begin() as session:
-            session.add(
-                TrackedSocialAccountModel(
-                    **{field.name: getattr(value, field.name) for field in fields(value)}
-                )
-            )
+            existing = await session.get(TrackedSocialAccountModel, value.account_id)
+            values = {field.name: getattr(value, field.name) for field in fields(value)}
+            if existing is None:
+                session.add(TrackedSocialAccountModel(**values))
+                return
+            for name, field_value in values.items():
+                if name not in {"account_id", "created_at"}:
+                    setattr(existing, name, field_value)
 
     async def set_account_enabled(self, username: str, enabled: bool) -> None:
         async with self._sessions.begin() as session:

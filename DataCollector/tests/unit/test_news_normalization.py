@@ -34,6 +34,16 @@ def test_detects_supported_assets_without_substring_false_positives() -> None:
 
 
 @pytest.mark.unit
+def test_detects_expanded_market_catalog_without_ambiguous_word_matches() -> None:
+    detector = AssetDetector()
+    detected = detector.detect(
+        "Ripple, Cardano, Avalanche and Chainlink react as $TAO and $NEAR rally"
+    )
+    assert set(detected) == {"XRP", "ADA", "AVAX", "LINK", "TAO", "NEAR"}
+    assert detector.detect("A link is near the end of this article") == {}
+
+
+@pytest.mark.unit
 def test_normalizes_metadata_without_inventing_scores() -> None:
     now = datetime(2026, 9, 18, 12, tzinfo=UTC)
     event = NewsNormalizer().normalize(raw(published=now, received=now), "Example", now)

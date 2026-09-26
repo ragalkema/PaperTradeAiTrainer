@@ -8,6 +8,16 @@ DEFAULT_ALIASES: dict[str, tuple[str, ...]] = {
     "BTC": ("bitcoin", "btc", "xbt"),
     "ETH": ("ethereum", "ether", "eth"),
     "SOL": ("solana", "sol"),
+    "XRP": ("ripple", "xrp"),
+    "TAO": ("bittensor", "$tao"),
+    "ADA": ("cardano", "$ada"),
+    "SUI": ("sui network", "$sui"),
+    "PEPE": ("pepe coin", "$pepe"),
+    "HYPE": ("hyperliquid", "$hype"),
+    "NEAR": ("near protocol", "$near"),
+    "AVAX": ("avalanche", "avax"),
+    "LINK": ("chainlink", "$link"),
+    "DOGE": ("dogecoin", "doge"),
 }
 
 

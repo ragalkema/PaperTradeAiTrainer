@@ -4,6 +4,8 @@ import argparse
 import asyncio
 import json
 import logging
+import os
+from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import NAMESPACE_URL, uuid5
@@ -17,6 +19,11 @@ from data_collector.application.services.news_understanding import (
     TransparentImportanceAnalyzer,
 )
 from data_collector.application.services.normalization import NewsNormalizer
+from data_collector.application.services.reference_dataset import (
+    DatasetTargets,
+    ExistingIntelligenceAssessor,
+    ReferenceDatasetBuilder,
+)
 from data_collector.application.services.retrospective_impact import MarketReactionUpdateService
 from data_collector.application.services.social_pipeline import (
     SocialAnalysisService,
@@ -24,11 +31,15 @@ from data_collector.application.services.social_pipeline import (
 )
 from data_collector.application.services.social_retrospective import SocialReactionUpdateService
 from data_collector.domain.entities import SocialAccountCategory, TrackedSocialAccount
+from data_collector.infrastructure.ai import OpenAIRelevanceAssessor
 from data_collector.infrastructure.configuration import get_data_collector_settings
 from data_collector.infrastructure.news import default_source_registry
 from data_collector.infrastructure.persistence import (
     SqlAlchemyNewsRepository,
     SqlAlchemySocialRepository,
+)
+from data_collector.infrastructure.persistence.reference_candidates import (
+    SqlAlchemyReferenceCandidateRepository,
 )
 from data_collector.infrastructure.persistence.session import data_collector_session_factory
 from data_collector.infrastructure.rss import RssNewsSourceAdapter
@@ -155,6 +166,39 @@ async def social_accounts(action: str, value: str | None) -> int:
     return 0
 
 
+async def build_reference_dataset(
+    output: Path,
+    total: int,
+    influential: int,
+    low_value: int,
+    use_ai: bool,
+) -> int:
+    candidates = await SqlAlchemyReferenceCandidateRepository(
+        data_collector_session_factory
+    ).candidates(max(total * 2, 20_000))
+    assessor: ExistingIntelligenceAssessor | OpenAIRelevanceAssessor
+    ai: OpenAIRelevanceAssessor | None = None
+    if use_ai:
+        settings = get_data_collector_settings()
+        api_key = settings.openai_api_key or os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("--ai requires OPENAI_API_KEY")
+        ai = OpenAIRelevanceAssessor(api_key, settings.openai_relevance_model)
+        assessor = ai
+    else:
+        assessor = ExistingIntelligenceAssessor()
+    try:
+        rows, report = await ReferenceDatasetBuilder().build(
+            candidates, assessor, DatasetTargets(total, influential, low_value)
+        )
+    finally:
+        if ai:
+            await ai.aclose()
+    ReferenceDatasetBuilder.write_jsonl(rows, output)
+    print(json.dumps({**asdict(report), "output": str(output)}, sort_keys=True))
+    return 0 if report.shortfall == 0 else 3
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="PaperTradeAiTrainer data collection")
     parser.add_argument(
@@ -167,11 +211,19 @@ def main() -> int:
             "analyze-social",
             "update-social-reactions",
             "social-accounts",
+            "build-reference-dataset",
         ),
     )
     parser.add_argument("action", nargs="?", choices=("list", "import", "enable", "disable"))
     parser.add_argument("value", nargs="?")
     parser.add_argument("--limit", type=int, default=200)
+    parser.add_argument(
+        "--output", type=Path, default=Path("data/reference/market_relevance.jsonl")
+    )
+    parser.add_argument("--total", type=int, default=10_000)
+    parser.add_argument("--influential", type=int, default=2_000)
+    parser.add_argument("--low-value", type=int, default=4_000)
+    parser.add_argument("--ai", action="store_true")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     if args.command == "news-once":
@@ -186,4 +238,10 @@ def main() -> int:
         return asyncio.run(analyze_social_command(args.limit))
     if args.command == "update-social-reactions":
         return asyncio.run(update_social_reactions(args.limit))
+    if args.command == "build-reference-dataset":
+        return asyncio.run(
+            build_reference_dataset(
+                args.output, args.total, args.influential, args.low_value, args.ai
+            )
+        )
     return asyncio.run(social_accounts(args.action or "list", args.value))
