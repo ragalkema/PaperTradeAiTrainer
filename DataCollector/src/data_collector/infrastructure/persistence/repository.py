@@ -212,6 +212,7 @@ class SqlAlchemyNewsRepository:
                     NewsEventModel.received_at <= decision_time,
                     NewsEventModel.received_at >= decision_time - lookback,
                     NewsEventModel.processed_at <= decision_time,
+                    NewsIntelligenceModel.processed_at <= decision_time,
                 )
             )
             .order_by(NewsEventModel.received_at)

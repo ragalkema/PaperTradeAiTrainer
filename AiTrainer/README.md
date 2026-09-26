@@ -31,6 +31,10 @@ Use `--synthetic` only to validate pipeline mechanics. Synthetic output is expli
 
 ## Local ML artifacts
 
+For the cost-aware five-horizon bot workflow and critical market/news comparison, see
+[`docs/research/bot_prediction_research.md`](../docs/research/bot_prediction_research.md).
+Run `python -m ai_trainer research-bot --help` for its local-database command.
+
 Training output is intentionally kept out of Git and can be inspected in these repository-root
 directories:
 

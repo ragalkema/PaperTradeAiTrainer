@@ -13,7 +13,7 @@ from uuid import NAMESPACE_URL, uuid5
 from data_collector.domain.entities import NewsFeatureSnapshot, SocialFeatureSnapshot
 from shared.contracts import Candle
 
-from ai_trainer.application.services.market_features import VERSION, market_features
+from ai_trainer.application.services.market_features import VERSION, market_feature_rows
 from ai_trainer.domain.entities import (
     ChronologicalSplit,
     DatasetConfiguration,
@@ -58,14 +58,22 @@ class UnifiedDatasetBuilder:
         close_by_time = {item.timestamp + candle_step: float(item.close) for item in ordered}
         rows: list[DatasetRow] = []
         analyzers: set[str] = set()
+        feature_rows = market_feature_rows(ordered)
         for index, candle in enumerate(ordered):
             decision_time = candle.timestamp + candle_step
             if not configuration.start_time <= decision_time <= configuration.end_time:
                 continue
-            values = market_features(ordered, index)
+            values = feature_rows[index].copy()
             observed = {name: decision_time for name in values}
             if FeatureGroup.NEWS in configuration.feature_configuration.groups:
                 news_snapshot = (news or {}).get(decision_time)
+                if news_snapshot and news_snapshot.generated_at > decision_time:
+                    raise ValueError("news snapshot generated after decision time")
+                if news_snapshot and (
+                    news_snapshot.feature_time > decision_time
+                    or news_snapshot.market != configuration.market
+                ):
+                    raise ValueError("news snapshot market/time mismatch")
                 values.update(_news_values(news_snapshot))
                 observed.update(
                     {name: decision_time for name in values if name.startswith("news_")}
@@ -74,6 +82,13 @@ class UnifiedDatasetBuilder:
                     analyzers.update(news_snapshot.analyzer_versions)
             if FeatureGroup.SOCIAL in configuration.feature_configuration.groups:
                 social_snapshot = (social or {}).get(decision_time)
+                if social_snapshot and social_snapshot.generated_at > decision_time:
+                    raise ValueError("social snapshot generated after decision time")
+                if social_snapshot and (
+                    social_snapshot.feature_time != decision_time
+                    or social_snapshot.market != configuration.market
+                ):
+                    raise ValueError("social snapshot market/time mismatch")
                 values.update(_social_values(social_snapshot))
                 observed.update(
                     {name: decision_time for name in values if name.startswith("social_")}
@@ -84,7 +99,12 @@ class UnifiedDatasetBuilder:
             target_price = close_by_time.get(target_at)
             target = target_price / float(candle.close) - 1 if target_price is not None else None
             rows.append(DatasetRow(decision_time, values, observed, target, target_at))
-        fingerprint = _fingerprint(configuration, ordered)
+        fingerprint = hashlib.sha256(
+            (
+                _fingerprint(configuration, ordered)
+                + json.dumps([asdict(row) for row in rows], sort_keys=True, default=str)
+            ).encode()
+        ).hexdigest()
         metadata = DatasetMetadata(
             str(uuid5(NAMESPACE_URL, fingerprint)),
             fingerprint,

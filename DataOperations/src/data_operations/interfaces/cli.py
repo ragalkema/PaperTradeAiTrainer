@@ -43,7 +43,58 @@ async def _market_once(
     interval: str,
 ) -> int:
     candles = await adapter.get_candles(MarketSymbol(market), interval, limit=2)
-    return await repository.save_candles(list(candles))
+    now = datetime.now(UTC)
+    return await repository.save_candles(
+        [c for c in candles if c.timestamp + INTERVALS[interval] <= now]
+    )
+
+
+async def run_public(once: bool = False) -> int:
+    from data_operations.application.public_news import public_news_once
+
+    repository = SqlAlchemyOperationsRepository(operations_session_factory)
+    news = SqlAlchemyNewsRepository(data_collector_session_factory)
+    settings = get_data_collector_settings()
+    async with BitvavoMarketDataAdapter() as adapter:
+
+        async def markets() -> int:
+            stored = 0
+            for market in ("BTC-EUR", "ETH-EUR", "SOL-EUR"):
+                for interval in ("1m", "1h"):
+                    stored += await _market_once(repository, adapter, market, interval)
+            return stored
+
+        async def collect_news() -> int:
+            return await public_news_once(repository, news, settings.news_poll_seconds)
+
+        if once:
+            await markets()
+            try:
+                count = await collect_news()
+            except Exception:
+                await repository.save_health(
+                    CollectorHealthObservation(
+                        "news",
+                        datetime.now(UTC),
+                        HealthStatus.OFFLINE,
+                        error_category="public_cycle_failed",
+                    )
+                )
+                raise
+            await repository.save_health(
+                CollectorHealthObservation(
+                    "news", datetime.now(UTC), HealthStatus.HEALTHY, events_received=count
+                )
+            )
+            return 0
+        await DataOperationsRunner(
+            repository,
+            {
+                "market": (markets, float(settings.market_poll_seconds)),
+                "news": (collect_news, float(settings.news_poll_seconds)),
+            },
+        ).run()
+    return 0
 
 
 async def run_operations() -> int:
@@ -163,6 +214,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="PaperTradeAiTrainer research data operations")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("run")
+    public = commands.add_parser("run-public", help="RSS and market data only; no X/AI calls")
+    public.add_argument("--once", action="store_true")
     for name in ("backfill-market", "repair-market-gaps", "readiness"):
         item = commands.add_parser(name)
         item.add_argument("--market", default="BTC-EUR")
@@ -171,6 +224,8 @@ def main(argv: list[str] | None = None) -> int:
         item.add_argument("--end", required=True)
     args = parser.parse_args(argv)
     _configure_logging()
+    if args.command == "run-public":
+        return asyncio.run(run_public(args.once))
     if args.command == "run":
         return asyncio.run(run_operations())
     if args.command == "readiness":

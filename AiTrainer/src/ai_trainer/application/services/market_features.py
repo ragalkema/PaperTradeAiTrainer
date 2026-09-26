@@ -8,10 +8,16 @@ from shared.contracts import Candle
 VERSION = "market_features_v1"
 
 
-def market_features(candles: Sequence[Candle], index: int) -> dict[str, float | None]:
+def market_features(
+    candles: Sequence[Candle],
+    index: int,
+    *,
+    trend: tuple[float | None, float | None, float | None] | None = None,
+) -> dict[str, float | None]:
     """Features at a candle close. ``candles[index]`` must be complete at decision time."""
-    closes = [float(x.close) for x in candles[: index + 1]]
-    volumes = [float(x.volume) for x in candles[: index + 1]]
+    history = candles[max(0, index - 14) : index + 1] if trend else candles[: index + 1]
+    closes = [float(x.close) for x in history]
+    volumes = [float(x.volume) for x in history]
     current = candles[index]
 
     def change(periods: int) -> float | None:
@@ -26,16 +32,16 @@ def market_features(candles: Sequence[Candle], index: int) -> dict[str, float | 
             value = alpha * price + (1 - alpha) * value
         return value
 
-    fast, slow = ema(6), ema(12)
+    fast, slow = trend[:2] if trend else (ema(6), ema(12))
     signal_values: list[float] = []
-    if len(closes) >= 12:
+    if trend is None and len(closes) >= 12:
         for stop in range(11, len(closes)):
             f = _ema(closes[: stop + 1], 6)
             s = _ema(closes[: stop + 1], 12)
             if f is not None and s is not None:
                 signal_values.append(f - s)
     macd = fast - slow if fast is not None and slow is not None else None
-    signal = _ema(signal_values, 5)
+    signal = trend[2] if trend else _ema(signal_values, 5)
     returns = [closes[i] / closes[i - 1] - 1 for i in range(1, len(closes))]
     rolling_returns = returns[-12:]
     volume_window = volumes[-12:]
@@ -61,9 +67,41 @@ def market_features(candles: Sequence[Candle], index: int) -> dict[str, float | 
         "market_macd": macd,
         "market_macd_signal": signal,
         "market_macd_histogram": macd - signal if macd is not None and signal is not None else None,
-        "market_atr": _atr(candles[: index + 1], 14),
+        "market_atr": _atr(history, 14),
         "market_rolling_volatility": _std(rolling_returns) if len(rolling_returns) > 1 else None,
     }
+
+
+def market_feature_rows(candles: Sequence[Candle]) -> list[dict[str, float | None]]:
+    """Linear-time EMA/MACD recurrence; equivalent to the single-row reference."""
+    fast: float | None = None
+    slow: float | None = None
+    signal: float | None = None
+    seed: list[float] = []
+    signal_seed: list[float] = []
+    output = []
+    for index, candle in enumerate(candles):
+        price = float(candle.close)
+        if index < 12:
+            seed.append(price)
+        if index == 5:
+            fast = sum(seed) / 6
+        elif fast is not None:
+            fast = 2 / 7 * price + (1 - 2 / 7) * fast
+        if index == 11:
+            slow = sum(seed) / 12
+        elif slow is not None:
+            slow = 2 / 13 * price + (1 - 2 / 13) * slow
+        if fast is not None and slow is not None:
+            macd = fast - slow
+            if signal is None:
+                signal_seed.append(macd)
+                if len(signal_seed) == 5:
+                    signal = sum(signal_seed) / 5
+            else:
+                signal = 2 / 6 * macd + (1 - 2 / 6) * signal
+        output.append(market_features(candles, index, trend=(fast, slow, signal)))
+    return output
 
 
 def _ema(values: Sequence[float], period: int) -> float | None:

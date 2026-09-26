@@ -47,6 +47,21 @@ def _parser() -> argparse.ArgumentParser:
     readiness.add_argument("--interval", default="1h")
     readiness.add_argument("--start", required=True)
     readiness.add_argument("--end", required=True)
+    research = commands.add_parser("research-bot", help="Cost-aware five-horizon local research")
+    research.add_argument("--market", choices=("BTC-EUR", "ETH-EUR", "SOL-EUR"), default="BTC-EUR")
+    research.add_argument("--start", required=True)
+    research.add_argument("--end", required=True)
+    research.add_argument("--validation-start", required=True)
+    research.add_argument("--test-start", required=True)
+    research.add_argument("--fee-per-side", type=float, default=0.0025)
+    research.add_argument("--spread-slippage-per-side", type=float, default=0.001)
+    research.add_argument("--output", type=Path)
+    research.add_argument(
+        "--optuna-trials",
+        type=int,
+        default=0,
+        help="0 disables tuning; otherwise 1-100 trials per model",
+    )
     return parser
 
 
@@ -194,11 +209,73 @@ def _synthetic_candles(
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.command == "research-bot":
+        return asyncio.run(_research_bot(args))
     if args.command == "compare-feature-groups":
         return asyncio.run(_compare(args))
     if args.command == "dataset-readiness":
         return asyncio.run(_print_readiness(args))
     return 2
+
+
+async def _research_bot(args: argparse.Namespace) -> int:
+    from data_collector.infrastructure.persistence import SqlAlchemyNewsRepository
+    from data_collector.infrastructure.persistence.session import data_collector_session_factory
+    from data_operations.infrastructure.repository import SqlAlchemyOperationsRepository
+    from data_operations.infrastructure.session import operations_session_factory
+
+    from ai_trainer.application.services.news_alignment import align_news
+    from ai_trainer.domain.entities import FeatureConfiguration
+    from ai_trainer.training.supervised.bot_research import Costs, run_research
+
+    def utc(value: str) -> datetime:
+        parsed = datetime.fromisoformat(value)
+        return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
+
+    start, end = utc(args.start), utc(args.end)
+    validation, test = utc(args.validation_start), utc(args.test_start)
+    if not start < validation < test < end:
+        raise ValueError("require start < validation-start < test-start < end")
+    if end > datetime.now(UTC):
+        raise ValueError("end cannot be in the future")
+    repository = SqlAlchemyOperationsRepository(operations_session_factory)
+    candles = await repository.candles(args.market, "1h", start, end)
+    snapshots = await SqlAlchemyNewsRepository(data_collector_session_factory).feature_snapshots(
+        args.market, start - timedelta(minutes=10), end
+    )
+    safe_snapshots = align_news(
+        snapshots, [c.timestamp + timedelta(hours=1) for c in candles], args.market
+    )
+    dataset = UnifiedDatasetBuilder().build(
+        candles,
+        DatasetConfiguration(
+            args.market, "1h", start, end, feature_configuration=FeatureConfiguration.MARKET_NEWS
+        ),
+        news=safe_snapshots,
+    )
+    output = args.output or Path("experiments/results") / f"bot-{args.market}-{uuid4()}"
+    report = run_research(
+        dataset,
+        validation,
+        test,
+        output,
+        Costs(args.fee_per_side, args.spread_slippage_per_side),
+        candles=candles,
+        optuna_trials=args.optuna_trials,
+    )
+    print(
+        json.dumps(
+            {
+                "output": str(output),
+                "selected_candidate": report["selected_candidate"],
+                "bot_action": report["bot_action"],
+                "news_comparison": report["news_comparison"],
+                "aligned_news_decisions": len(safe_snapshots),
+            },
+            indent=2,
+        )
+    )
+    return 0
 
 
 async def _readiness_report(

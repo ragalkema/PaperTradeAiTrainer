@@ -45,6 +45,7 @@ def calculate_features(
             for item in items
             if cutoff <= item.event.received_at <= feature_time
             and item.event.processed_at <= feature_time
+            and item.intelligence.processed_at <= feature_time
         )
 
     w15, w60, w360 = window(15), window(60), window(360)
