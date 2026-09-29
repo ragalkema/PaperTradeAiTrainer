@@ -21,6 +21,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+notebooks = [
+  "ipykernel>=6,<8",
+  "nbclient>=0.10,<1",
+]
 dashboard = [
   "PySide6>=6.8,<7",
   "pyqtgraph>=0.13.7,<1",

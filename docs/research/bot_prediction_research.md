@@ -42,8 +42,12 @@ about a specific account tariff. Both entry and exit are charged. Allocate 10% o
 to one spot long at a time; wait until its horizon completes before another entry. Reports include
 cash and always-long-with-the-same-holding-period baselines. The latter is not buy-and-hold.
 
-This evaluation measures closed-trade drawdown, not intratrade mark-to-market losses. Execution
-uses candle endpoints and estimated friction. It does not simulate partial fills, order-book
+The CLI now uses delayed candle execution: enter at the opening one hour after the decision,
+then exit at the opening after the selected holding period. Targets use those same prices.
+Missing execution bars exclude a decision. Drawdown includes a conservative intrabar
+high-before-low bound, not a claim about the actual tick path. Fees apply to actual traded
+notional on each side. A one-entry buy-and-hold baseline is also reported.
+It does not simulate partial fills, order-book
 depth, margin, liquidation, staking or lending. Do not interpret it as an executable P&L guarantee.
 
 ## Critical news comparison
@@ -65,11 +69,36 @@ contains estimated gross/net return, horizon and allocation. The caller must enf
 identity, consume each hourly decision once, and schedule the exit. This is a reusable signal
 provider; it is not automatically attached to the existing live ticker bots or an order executor.
 
-Optuna remains installed but is not used by this fixed-parameter benchmark. Tuning must use only
-training/validation partitions and must not select parameters on the reported test outcomes.
+Add `--optuna-trials 20` to enable tuning (default zero, maximum 100 per candidate).
+Optuna uses two expanding chronological folds inside the pre-policy training period, with
+separate early stopping and purged overlapping targets. Its objective is normalized prediction
+MSE; the independent policy validation then applies trading-cost and drawdown gates.
+Each run stores `optuna.db` alongside native model JSON and the report. It creates new studies,
+not an automatic resume of a previous run. Report diagnostics include prediction spread, bias,
+zero-return baseline error, and explicit policy rejection reasons.
+
+Signals expose `entry_delay_hours`; the executor must respect it as well as the holding period.
+The CLI uses delayed OHLC execution; the Python API retains an endpoint fallback when no candles
+are supplied for compatibility. Check `execution_version` before comparing reports.
+
+## Public news collection
+
+`python -m data_operations run-public` collects public market candles and RSS, without calling X.
+Use `--once` for one collection cycle. Only closed candles are stored by this route.
+Snapshots start after six hours of successful continuous RSS polling; outages reset coverage.
+News must have been processed by the decision time. Snapshots are aligned using their real
+generation time, with a maximum ten-minute feature age. They are never backdated.
+This builds future history; it does not provide a licensed 2025 news archive or reconstruct what
+an online collector knew in 2025. Long-running coverage and restart behavior still need live
+validation; adding the command alone is not proof of six-hour uptime.
 
 ## Local first run
 
 On the stored 2025–2026 candles, all three markets selected HOLD. Five horizons per market were
 trained. None passed the validation gates; news was skipped for insufficient snapshot history.
 This establishes a reproducible benchmark and does not establish a profitable strategy.
+
+The follow-up delayed-OHLC run on 2026-09-26 used three Optuna trials for each of five horizons
+on BTC, ETH and SOL (45 trials total). All three again selected HOLD and skipped news comparison
+because no decision-aligned historical snapshots were available. Three trials are a smoke test,
+not an exhaustive search. These results do not justify increasing complexity or relaxing gates.

@@ -38,6 +38,11 @@ class SqlAlchemyNewsRepository:
     def __init__(self, sessions: async_sessionmaker[AsyncSession]) -> None:
         self._sessions = sessions
 
+    async def recover_pending(self) -> int:
+        from data_collector.infrastructure.persistence.recovery import recover_pending_news
+
+        return len(await recover_pending_news(self._sessions, apply=True))
+
     async def register_source(self, source: NewsSource) -> None:
         async with self._sessions.begin() as session:
             existing = await session.get(NewsSourceModel, source.source_id)

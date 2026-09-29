@@ -60,5 +60,6 @@ class PaperSignalPredictor:
             "predicted_gross_return": gross,
             "estimated_net_return": net,
             "horizon_hours": self.candidate["horizon_hours"],
+            "entry_delay_hours": self.candidate.get("entry_delay_hours", 0),
             "position_fraction": 0.1,
         }

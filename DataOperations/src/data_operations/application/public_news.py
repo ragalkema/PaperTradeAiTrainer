@@ -19,13 +19,16 @@ def coverage_start(
 async def public_news_once(operations: Any, news: Any, poll_seconds: int = 300) -> int:
     from data_collector.interfaces.cli.main import analyze_news, collect_once
 
-    if await collect_once() != 0:
+    await news.recover_pending()
+    status = await collect_once()
+    # Analyze successfully collected content even when one source is unavailable.
+    await analyze_news(1000)
+    if status != 0:
         # An error return is not a successful collection count.
         await operations.save_checkpoint(
             CollectionCheckpoint("public_news_coverage", None, datetime.now(UTC), None)
         )
         raise RuntimeError("one or more RSS sources failed; snapshots withheld")
-    await analyze_news(1000)
     now = datetime.now(UTC)
     checkpoint = await operations.checkpoint("public_news_coverage")
     first = coverage_start(checkpoint, now, poll_seconds)

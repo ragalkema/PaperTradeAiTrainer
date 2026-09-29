@@ -32,6 +32,12 @@ def _parser() -> argparse.ArgumentParser:
         prog="ai-trainer", description="Point-in-time ML research (paper only)"
     )
     commands = parser.add_subparsers(dest="command", required=True)
+    from ai_trainer.interfaces.cli.reaction_dataset import register
+
+    register(commands)
+    from ai_trainer.interfaces.cli.content_research import register as register_content
+
+    register_content(commands)
     compare = commands.add_parser("compare-feature-groups")
     compare.add_argument("--market", choices=("BTC-EUR", "ETH-EUR", "SOL-EUR"), default="BTC-EUR")
     compare.add_argument("--interval", default="1h")
@@ -209,6 +215,14 @@ def _synthetic_candles(
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.command in ("compare-content", "shadow-content"):
+        from ai_trainer.interfaces.cli.content_research import compare, shadow
+
+        return asyncio.run(compare(args) if args.command == "compare-content" else shadow(args))
+    if args.command == "build-event-reactions":
+        from ai_trainer.interfaces.cli.reaction_dataset import run
+
+        return asyncio.run(run(args))
     if args.command == "research-bot":
         return asyncio.run(_research_bot(args))
     if args.command == "compare-feature-groups":

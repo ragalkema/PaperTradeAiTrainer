@@ -55,3 +55,25 @@ python -m pip install -e ".[dev,ml]"
 
 Optuna is available as a dependency for a future tuning command; normal comparison runs remain
 deterministic and do not start an Optuna study implicitly.
+
+## Per-news / X reaction labels
+
+Build per-message datasets at 1h, 2h, 6h, 12h, 24h, 7d and 30d using locally stored content
+and hourly candles:
+
+```powershell
+python -m ai_trainer build-event-reactions --start 2025-01-01
+```
+
+See [dataset definitions and leakage safeguards](../docs/research/event_reaction_datasets.md).
+This exports labels; it does not train a text model or make paid API calls.
+
+## Matched text baseline and order-free forward logging
+
+Run `python -m ai_trainer compare-content --market ETH-EUR --start 2026-09-18` to compare a
+market Ridge baseline with market + TF-IDF on identical hourly decisions. Inspect
+`notebooks/news_model_review.ipynb`. Frozen artifacts can be monitored with `shadow-content`.
+See [commands, safeguards and limitations](../docs/research/content_model_workflow.md).
+
+Windows logon startup, automatic worker restart and the graceful stop marker are documented in
+[Windows research startup](../docs/research/windows_research_startup.md).

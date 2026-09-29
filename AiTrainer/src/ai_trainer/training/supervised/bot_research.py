@@ -406,6 +406,7 @@ def bot_signal(
         "predicted_gross_return": prediction,
         "estimated_net_return": net,
         "horizon_hours": candidate["horizon_hours"],
+        "entry_delay_hours": candidate.get("entry_delay_hours", 0),
         "position_fraction": 0.1,
         "requires_no_open_position": True,
     }
